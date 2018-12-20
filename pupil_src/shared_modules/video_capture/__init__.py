@@ -36,9 +36,10 @@ from .fake_backend import Fake_Source, Fake_Manager
 from .file_backend import FileSeekError
 from .file_backend import File_Source, File_Manager
 from .uvc_backend import UVC_Source,  UVC_Manager
+from .opencv_backend import OpenCV_Source,  OpenCV_Manager
 
-source_classes = [File_Source,  UVC_Source, Fake_Source]
-manager_classes = [File_Manager, UVC_Manager, Fake_Manager]
+source_classes = [File_Source,  UVC_Source, Fake_Source, OpenCV_Source]
+manager_classes = [File_Manager, UVC_Manager, Fake_Manager, OpenCV_Manager]
 
 try:
     from .ndsi_backend import NDSI_Source, NDSI_Manager
