@@ -10,7 +10,7 @@ See COPYING and COPYING.LESSER for license details.
 '''
 
 import os, stat
-from time import sleep
+import time
 
 from .base_backend import Base_Source, Playback_Source, Base_Manager, EndofVideoError
 from camera_models import load_intrinsics
@@ -20,7 +20,8 @@ from multiprocessing import cpu_count
 import os.path
 from fractions import Fraction
 
-import cv2
+import v4l2capture
+import select
 
 # logging
 import logging
@@ -34,9 +35,11 @@ class Frame(object):
         self.index = index
         self._img = None
         self._gray = None
+        if self._frame.ndim < 3:
+            self._gray = self._frame
         self.jpeg_buffer = None
         self.yuv_buffer = None
-        self.height, self.width, _ = frame.shape
+        self.height, self.width = frame.shape[:2]
 
     def copy(self):
         return Frame(self.timestamp, self._frame, self.index)
@@ -56,15 +59,15 @@ class Frame(object):
         return self._gray
 
 
-class OpenCV_Source(Base_Source):
-    """Simple OpenCV-based capture for non-UVC sources.
+class V4L2_Source(Base_Source):
+    """Simple V4L2-based capture for non-UVC sources.
 
     Attributes:
         source_path (str): Path to source file
         timestamps (str): Path to timestamps file
     """
 
-    def __init__(self, g_pool, device_path=None, flip_vertical=False, flip_horizontal=False, *args, **kwargs):
+    def __init__(self, g_pool, device_path=None, flip_vertical=False, flip_horizontal=False, capture_grey=True, *args, **kwargs):
         super().__init__(g_pool, *args, **kwargs)
 
         # minimal attribute set
@@ -72,6 +75,7 @@ class OpenCV_Source(Base_Source):
         self.device_path = device_path
         self.flip_vertical = flip_vertical
         self.flip_horizontal = flip_horizontal
+        self.capture_grey = capture_grey
         self.current_frame_idx = 0
         if not self.device_path or not stat.S_ISCHR(os.stat(self.device_path).st_mode):
             logger.error('Init failed. Device could not be found at `%s`'%source_path)
@@ -79,7 +83,14 @@ class OpenCV_Source(Base_Source):
             return
 
         try:
-            self._opencv_cap = cv2.VideoCapture(self.device_path)
+            self._v4l2_cap = v4l2capture.Video_device(self.device_path)
+            fourcc = 'BGR'
+            if self.capture_grey:
+                fourcc='GREY'
+            self._width, self._height = self._v4l2_cap.set_format(640, 480, fourcc=fourcc)
+            self._v4l2_cap.create_buffers(30)
+            self._v4l2_cap.queue_all_buffers()
+            self._v4l2_cap.start()
             self._initialised = True
         except Exception as e:
             logger.error("%s:%s"%(e.__class__,str(e)))
@@ -108,14 +119,14 @@ class OpenCV_Source(Base_Source):
 
     @property
     def frame_size(self):
-        return int(self._opencv_cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(self._opencv_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        return self._v4l2_cap.get_format()[:2]
 
     def get_frame_index(self):
         return self.current_frame_idx
 
     @property
     def frame_rate(self):
-        return self._opencv_cap.get(cv2.CAP_PROP_FPS)
+        return self._v4l2_cap.set_fps(30)/1000.
 
     def get_init_dict(self):
         if self.g_pool.app == 'capture':
@@ -135,50 +146,58 @@ class OpenCV_Source(Base_Source):
     @ensure_initialisation()
     def get_frame(self):
         try:
-            ret, image = self._opencv_cap.read()
+            select.select((self._v4l2_cap,), (), ())
+            raw_frame = self._v4l2_cap.read_and_queue()
+            if self.capture_grey:
+                image = np.frombuffer(raw_frame,dtype=np.uint8).reshape(self._height, self._width).copy()
+            else:
+                image = np.frombuffer(raw_frame,dtype=np.uint8).reshape(self._height, self._width, 3).copy()
             if self.flip_vertical:
                 image[:] = np.flip(image,0)
             if self.flip_horizontal:
                 image[:] = np.flip(image,1)
-            timestamp = self._opencv_cap.get(cv2.CAP_PROP_POS_MSEC)
+            timestamp = time.clock_gettime(time.CLOCK_MONOTONIC)
             index = self.current_frame_idx
             self.current_frame_idx += 1
             #logger.info("shape: %s, dtype: %s"%(str(image.shape),str(image.dtype)))
             return Frame(timestamp, image, index=index)
+            print(frame.img.shape)
         except Exception as e:
             logger.error("get_frame: %s:%s"%(e.__class__,str(e)))
 
     def recent_events(self, events):
         try:
             frame = self.get_frame()
+            events['frame'] = frame
         except Exception as e:
             logger.error("recent_event: %s:%s"%(e.__class__,str(e)))
-        events['frame'] = frame
 
     @property
     def jpeg_support(self):
         return False
 
     def cleanup(self):
-        if self._opencv_cap:
-            self._opencv_cap.release()
-            self._opencv_cap = None
+        if self._v4l2_cap:
+            self._v4l2_cap.stop()
+            self._v4l2_cap.close()
+            self._v4l2_cap = None
         super().cleanup()
 
 
-class OpenCV_Manager(Base_Manager):
+class V4L2_Manager(Base_Manager):
     """Summary
 
     Attributes:
         file_exts (list): File extensions to filter displayed files
         root_folder (str): Folder path, which includes file sources
     """
-    gui_name = 'OpenCV source'
+    gui_name = 'V4L2 source'
     video_device_pattern = '/dev/video*'
 
     def __init__(self, g_pool,):
         super().__init__(g_pool)
         self.flip_vertical, self.flip_horizontal = False, False
+        self.capture_grey = True
 
     def init_ui(self):
         self.add_menu()
@@ -194,6 +213,8 @@ class OpenCV_Manager(Base_Manager):
         self.menu.append(ui.Info_Text("Flip capture (both to rotate 180): "))
         self.menu.append(ui.Switch('flip_horizontal',self,label='horizontally'))
         self.menu.append(ui.Switch('flip_vertical',self,label='vertically'))
+
+        self.menu.append(ui.Switch('capture_grey',self,label='capture grayscale'))
 
         self.menu.append(ui.Selector(
             'selected_source',
@@ -212,7 +233,8 @@ class OpenCV_Manager(Base_Manager):
         settings = {
             'device_path': full_path,
             'flip_horizontal': self.flip_horizontal,
-            'flip_vertical': self.flip_vertical
+            'flip_vertical': self.flip_vertical,
+            'capture_grey':self.capture_grey
         }
         self.activate_source(settings)
 
@@ -224,9 +246,9 @@ class OpenCV_Manager(Base_Manager):
 
     def activate_source(self, settings={}):
         if self.g_pool.process == 'world':
-            self.notify_all({'subject':'start_plugin',"name":"OpenCV_Source",'args':settings})
+            self.notify_all({'subject':'start_plugin',"name":"V4L2_Source",'args':settings})
         else:
-            self.notify_all({'subject':'start_eye_capture','target':self.g_pool.process, "name":"OpenCV_Source",'args':settings})
+            self.notify_all({'subject':'start_eye_capture','target':self.g_pool.process, "name":"V4L2_Source",'args':settings})
 
     def recent_events(self,events):
         pass
