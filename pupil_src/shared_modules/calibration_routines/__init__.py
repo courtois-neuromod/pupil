@@ -17,6 +17,7 @@ from .fingertip_calibration import Fingertip_Calibration
 from .single_marker_calibration import Single_Marker_Calibration
 from .natural_features_calibration import Natural_Features_Calibration
 from .hmd_calibration import HMD_Calibration, HMD_Calibration_3D
+from .mock_calibration import Mock_Calibration
 from .gaze_mappers import (
     Gaze_Mapping_Plugin,
     Dummy_Gaze_Mapper,
@@ -37,6 +38,7 @@ calibration_plugins = [
     Natural_Features_Calibration,
     HMD_Calibration,
     HMD_Calibration_3D,
+    Mock_Calibration,
 ]
 
 gaze_mapping_plugins = [

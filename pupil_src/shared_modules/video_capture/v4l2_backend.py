@@ -37,6 +37,8 @@ class Frame(object):
         self._gray = None
         if self._frame.ndim < 3:
             self._gray = self._frame
+        if self._frame.ndim == 3:
+            self.img = self._frame
         self.jpeg_buffer = None
         self.yuv_buffer = None
         self.height, self.width = frame.shape[:2]
@@ -46,7 +48,7 @@ class Frame(object):
 
     @property
     def img(self):
-        return self._frame
+        return self._img
 
     @property
     def bgr(self):

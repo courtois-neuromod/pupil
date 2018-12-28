@@ -161,9 +161,13 @@ class AV_Writer(object):
                 self.frame = av.VideoFrame(
                     input_frame.width, input_frame.height, "yuv422p"
                 )
-            else:
+            elif input_frame.img is not None:
                 self.frame = av.VideoFrame(
                     input_frame.width, input_frame.height, "bgr24"
+                )
+            else:
+                self.frame = av.VideoFrame(
+                    input_frame.width, input_frame.height, "gray"
                 )
             if self.use_timestamps:
                 self.frame.time_base = self.time_base
@@ -175,9 +179,10 @@ class AV_Writer(object):
             self.frame.planes[0].update(y)
             self.frame.planes[1].update(u)
             self.frame.planes[2].update(v)
-        else:
+        elif input_frame.img is not None:
             self.frame.planes[0].update(input_frame.img)
-
+        else:
+            self.frame.planes[0].update(input_frame.gray)
         if self.use_timestamps:
             self.frame.pts = int(
                 (input_frame.timestamp - self.start_time) / self.time_base

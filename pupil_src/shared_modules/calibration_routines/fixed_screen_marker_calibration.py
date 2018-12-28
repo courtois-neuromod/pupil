@@ -81,10 +81,8 @@ class Fixed_Screen_Marker_Calibration(Calibration_Plugin):
         self.menu.append(ui.Slider('sample_duration',self,step=1,min=10,max=100,label='Sample duration'))
 
     def start(self):
-        if not self.g_pool.capture.online:
-            logger.error("{} requiers world capture video input.".format(self.mode_pretty))
-            return
-        super().start()
+
+        #super().start()
         audio.say("Starting {}".format(self.mode_pretty))
         logger.info("Starting {}".format(self.mode_pretty))
 
@@ -159,13 +157,13 @@ class Fixed_Screen_Marker_Calibration(Calibration_Plugin):
         self.counter = 0
         self.close_window()
         self.active = False
-        self.button.status_text = ''
+        #self.button.status_text = ''
         if self.mode == 'calibration':
             logger.info('pupil list %d ref list %d'%(len(self.pupil_list),len(self.ref_list)))
             finish_calibration(self.g_pool, self.pupil_list, self.ref_list)
         elif self.mode == 'accuracy_test':
             self.finish_accuracy_test(self.pupil_list, self.ref_list)
-        super().stop()
+        self.notify_all({"subject": "{}.stopped".format(self.mode)})
 
     def close_window(self):
         if self._window:
@@ -236,7 +234,7 @@ class Fixed_Screen_Marker_Calibration(Calibration_Plugin):
             # use np.arrays for per element wise math
             self.display_pos = np.array(self.active_site)
             self.on_position = on_position
-            self.button.status_text = '{}'.format(self.active_site)
+            #self.button.status_text = '{}'.format(self.active_site)
 
         if self._window:
             self.gl_display_in_window()

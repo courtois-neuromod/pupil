@@ -545,13 +545,14 @@ def eye(
                     if notification["record_eye"] and g_pool.capture.online:
                         record_path = notification["rec_path"]
                         raw_mode = notification["compression"]
+                        writer_args = notification.get('args',{})
                         logger.info("Will save eye video to: {}".format(record_path))
                         video_path = os.path.join(
                             record_path, "eye{}.mp4".format(eye_id)
                         )
                         if raw_mode and frame and g_pool.capture.jpeg_support:
                             g_pool.writer = JPEG_Writer(
-                                video_path, g_pool.capture.frame_rate
+                                video_path, g_pool.capture.frame_rate, **writer_args
                             )
                         elif hasattr(g_pool.capture._recent_frame, "h264_buffer"):
                             g_pool.writer = H264Writer(
@@ -559,10 +560,11 @@ def eye(
                                 g_pool.capture.frame_size[0],
                                 g_pool.capture.frame_size[1],
                                 g_pool.capture.frame_rate,
+                                **writer_args
                             )
                         else:
                             g_pool.writer = AV_Writer(
-                                video_path, g_pool.capture.frame_rate
+                                video_path, g_pool.capture.frame_rate, **writer_args
                             )
                 elif subject == "recording.stopped":
                     if g_pool.writer:
@@ -905,4 +907,3 @@ def eye_profiled(
             eye_id
         )
     )
-
