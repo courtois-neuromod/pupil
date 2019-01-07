@@ -158,6 +158,7 @@ class V4L2_Source(Base_Source):
                 image[:] = np.flip(image,0)
             if self.flip_horizontal:
                 image[:] = np.flip(image,1)
+            #timestamp = self.gpool.get_timestamp()
             timestamp = time.clock_gettime(time.CLOCK_MONOTONIC)
             index = self.current_frame_idx
             self.current_frame_idx += 1
