@@ -14,6 +14,7 @@ import errno
 # logging
 import logging
 import os
+import collections
 import platform
 from shutil import copy2
 from time import gmtime, localtime, strftime, time
@@ -537,3 +538,14 @@ def writable_dir(n_path):
     else:
         os.remove(os.path.join(n_path, "dummpy_tmp"))
         return True
+
+
+class Service_Recorder(Recorder):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.g_pool.quickbar = []
+        self.menu = collections.namedtuple('menu','read_only')
+    def init_ui(self):
+        pass
+    def deinit_ui(self):
+        pass

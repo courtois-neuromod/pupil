@@ -108,6 +108,7 @@ def service(
         from blink_detection import Blink_Detection
         from service_ui import Service_UI
         from background_helper import IPC_Logging_Task_Proxy
+        from recorder import Service_Recorder
 
         IPC_Logging_Task_Proxy.push_url = ipc_push_url
 
@@ -144,6 +145,7 @@ def service(
             Pupil_Remote,
             Frame_Publisher,
             Blink_Detection,
+            Service_Recorder
         ] + runtime_plugins
         plugin_by_index = (
             runtime_plugins

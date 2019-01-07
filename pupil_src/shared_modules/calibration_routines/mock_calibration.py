@@ -18,6 +18,8 @@ class Mock_Calibration(Calibration_Plugin):
         class MockCapture():
             def __init__(self, frame_size):
                 self.frame_size = frame_size
+                self.jpeg_support = False
+                self._recent_frame = None
         self.g_pool.capture = MockCapture(frame_size)
 
     def init_ui(self):
