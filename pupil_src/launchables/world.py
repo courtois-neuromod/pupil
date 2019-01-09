@@ -419,6 +419,10 @@ def world(
                                 "doc": p.on_notify.__doc__,
                             }
                         )
+            elif subject == 'world_process.should_stop':
+                g_pool.world_should_run = False
+
+        g_pool.world_should_run = True
 
         width, height = session_settings.get(
             "window_size", (1280 + icon_bar_width, 720)
@@ -583,7 +587,7 @@ def world(
         logger.warning("Process started.")
 
         # Event loop
-        while not glfw.glfwWindowShouldClose(main_window):
+        while not glfw.glfwWindowShouldClose(main_window) and g_pool.world_should_run:
 
             # fetch newest notifications
             new_notifications = []

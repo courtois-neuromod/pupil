@@ -57,6 +57,7 @@ class Recorder(System_Plugin_Base):
         g_pool,
         session_name=get_auto_name(),
         rec_root_dir=None,
+        rec_path=None,
         user_info={"name": "", "additional_field": "change_me"},
         info_menu_conf={},
         show_info_menu=False,
@@ -70,6 +71,7 @@ class Recorder(System_Plugin_Base):
 
         base_dir = self.g_pool.user_dir.rsplit(os.path.sep, 1)[0]
         default_rec_root_dir = os.path.join(base_dir, "recordings")
+        self.rec_path = rec_path
 
         if (
             rec_root_dir
@@ -265,17 +267,31 @@ class Recorder(System_Plugin_Base):
         return strftime("%H:%M:%S", rec_time)
 
     def start(self):
-        session = os.path.join(self.rec_root_dir, self.session_name)
-        try:
-            os.makedirs(session, exist_ok=True)
-            logger.debug("Created new recordings session dir {}".format(session))
-        except OSError:
-            logger.error(
-                "Could not start recording. Session dir {} not writable.".format(
-                    session
+        if self.rec_path is None:
+            session = os.path.join(self.rec_root_dir, self.session_name)
+            try:
+                os.makedirs(session, exist_ok=True)
+                logger.debug("Created new recordings session dir {}".format(session))
+            except OSError:
+                logger.error(
+                    "Could not start recording. Session dir {} not writable.".format(
+                        session
+                    )
                 )
-            )
-            return
+                return
+            # set up self incrementing folder within session folder
+            counter = 0
+            while True:
+                self.rec_path = os.path.join(session, "{:03d}/".format(counter))
+                try:
+                    os.mkdir(self.rec_path)
+                    logger.debug("Created new recording dir {}".format(self.rec_path))
+                    break
+                except:
+                    logger.debug(
+                        "We dont want to overwrite data, incrementing counter & trying to make new data folder"
+                    )
+                    counter += 1
 
         self.pldata_writers = {}
         self.frame_count = 0
@@ -283,20 +299,6 @@ class Recorder(System_Plugin_Base):
         self.menu.read_only = True
         self.start_time = time()
         start_time_synced = self.g_pool.get_timestamp()
-
-        # set up self incrementing folder within session folder
-        counter = 0
-        while True:
-            self.rec_path = os.path.join(session, "{:03d}/".format(counter))
-            try:
-                os.mkdir(self.rec_path)
-                logger.debug("Created new recording dir {}".format(self.rec_path))
-                break
-            except:
-                logger.debug(
-                    "We dont want to overwrite data, incrementing counter & trying to make new data folder"
-                )
-                counter += 1
 
         self.meta_info_path = os.path.join(self.rec_path, "info.csv")
 
