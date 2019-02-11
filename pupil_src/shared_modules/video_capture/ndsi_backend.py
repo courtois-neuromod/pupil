@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2018 Pupil Labs
+Copyright (C) 2012-2019 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -23,7 +23,7 @@ try:
     assert __version__ >= "0.4"
     from ndsi import __protocol_version__
 except (ImportError, AssertionError):
-    raise Exception("pyndsi version is to old. Please upgrade")
+    raise Exception("pyndsi version is to old. Please upgrade") from None
 logger = logging.getLogger(__name__)
 
 
@@ -146,6 +146,7 @@ class NDSI_Source(Base_Source):
                 import traceback
 
                 logger.error(traceback.format_exc())
+
             self._recent_frame = frame
             if frame:
                 self._frame_size = (frame.width, frame.height)
