@@ -123,10 +123,10 @@ class Calibration_Plugin(Plugin):
         self.add_menu()
         self.button = None
         self.calib_button = ui.Thumb(
-            "active", self, label="C", setter=self.toggle_calibration, hotkey="c"
+            "active", self, label="C", setter=self.toggle_calibration, hotkey="C"
         )
         self.test_button = ui.Thumb(
-            "active", self, label="T", setter=self.toggle_accuracy_test, hotkey="t"
+            "active", self, label="T", setter=self.toggle_accuracy_test, hotkey="T"
         )
 
         on_color = (0.3, 0.2, 1.0, 0.9)
