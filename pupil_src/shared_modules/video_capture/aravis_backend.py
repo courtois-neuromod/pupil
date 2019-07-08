@@ -17,17 +17,47 @@ from .base_backend import InitialisationError, Base_Source, Base_Manager
 from camera_models import load_intrinsics
 from .utils import Check_Frame_Stripes, Exposure_Time
 
-# check versions for our own depedencies as they are fast-changing
-assert VersionFormat(uvc.__version__) >= VersionFormat("0.13")
-
 # logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+class Frame(object):
+    """docstring of Frame"""
+    def __init__(self, timestamp, frame, index):
+        self._frame = frame
+        self.timestamp = timestamp
+        self.index = index
+        self._img = None
+        self._gray = None
+        if self._frame.ndim < 3:
+            self._gray = self._frame
+        if self._frame.ndim == 3:
+            self.img = self._frame
+        self.jpeg_buffer = None
+        self.yuv_buffer = None
+        self.height, self.width = frame.shape[:2]
+
+    def copy(self):
+        return Frame(self.timestamp, self._frame, self.index)
+
+    @property
+    def img(self):
+        return self._img
+
+    @property
+    def bgr(self):
+        return self.img
+
+    @property
+    def gray(self):
+        if self._gray is None:
+            self._gray = self._frame.mean(-1).astype(self._frame.dtype)
+        return self._gray
+
 class Aravis_Source(Base_Source):
     """
-    Camera Capture is a class that encapsualtes uvc.Capture:
+    Camera Capture is a class that encapsulates oython-aravis
     """
 
     def __init__(
@@ -38,69 +68,54 @@ class Aravis_Source(Base_Source):
         name=None,
         uid=None,
         exposure_mode="manual",
+        nbuffers=250
     ):
 
         super().__init__(g_pool)
         self.aravis_capture = None
         self._restart_in = 3
 
-        self.devices = aravis.get_device_ids()
-
+        logger.warning(
+            "Activating camera: %s" % uid
+        )
         # if uid is supplied we init with that
         if uid:
             try:
                 self.aravis_capture = aravis.Camera(uid)
-            except aravis.AravisException:
+            except aravis.AravisException as e:
                 logger.warning(
-                    "No camera found that matched {}".format(preferred_names)
+                    "No Aravis camera found or error in initialization"
                 )
+                logger.warning(str(e))
+        self.current_frame_idx = 0
+        self.aravis_capture.start_acquisition(nbuffers)
 
     def configure_capture(self, frame_size, frame_rate, controls):
-
+        pass
 
     def recent_events(self, events):
         try:
-            frame = self.uvc_capture.get_frame(0.05)
-
-            if self.preferred_exposure_time:
-                target = self.preferred_exposure_time.calculate_based_on_frame(frame)
-                if target is not None:
-                    self.exposure_time = target
-
-            if self.checkframestripes and self.checkframestripes.require_restart(frame):
-                # set the self.frame_rate in order to restart
-                self.frame_rate = self.frame_rate
-                logger.info("Stripes detected")
-
-        except uvc.StreamError:
-            self._recent_frame = None
-            self._restart_logic()
-        except (AttributeError, uvc.InitError):
-            self._recent_frame = None
-            time.sleep(0.02)
-            self._restart_logic()
+            ts, data = self.aravis_capture.try_pop_frame(timestamp=True)
+            if data is None:
+                return
+            print(ts, data.shape)
+            index = self.current_frame_idx
+            self.current_frame_idx += 1
+            frame = Frame(ts, data, index)
+        except Exception:
+            #TODO
+            pass
         else:
-            if (
-                self.ts_offset
-            ):  # c930 timestamps need to be set here. The camera does not provide valid pts from device
-                frame.timestamp = uvc.get_time_monotonic() + self.ts_offset
-            frame.timestamp -= self.g_pool.timebase.value
             self._recent_frame = frame
             events["frame"] = frame
-            self._restart_in = 3
-
 
     def get_init_dict(self):
         d = super().get_init_dict()
         d["frame_size"] = self.frame_size
         d["frame_rate"] = self.frame_rate
-        d["check_stripes"] = self.check_stripes
-        d["exposure_mode"] = self.exposure_mode
-        if self.uvc_capture:
+        if self.aravis_capture:
             d["name"] = self.name
-            d["uvc_controls"] = self._get_uvc_controls()
-        else:
-            d["preferred_names"] = self.name_backup
+#            d["uvc_controls"] = self._get_uvc_controls()
         return d
 
     @property
@@ -109,80 +124,73 @@ class Aravis_Source(Base_Source):
             return "%s %s"%(self.aravis_capture.name, self.aravis_capture.get_device_id())
 
     @property
+    def height(self):
+        if self.aravis_capture:
+            return self.aravis_capture.get_feature('Height')
+
+    @property
+    def width(self):
+        if self.aravis_capture:
+            return self.aravis_capture.get_feature('Width')
+
+    @property
     def frame_size(self):
-        if self.uvc_capture:
-            return self.aravis_capture.frame_size
-        else:
-            return self.frame_size_backup
+        return (self.height, self.width)
 
     @frame_size.setter
     def frame_size(self, new_size):
         # closest match for size
-        sizes = [
-            abs(r[0] - new_size[0]) + abs(r[1] - new_size[1])
-            for r in self.uvc_capture.frame_sizes
-        ]
-        best_size_idx = sizes.index(min(sizes))
-        size = self.uvc_capture.frame_sizes[best_size_idx]
+
+        height = self.set_feature('Height', new_size[0])
+        width = self.set_feature('Width', new_size[1])
+        size = (height, width)
+
         if tuple(size) != tuple(new_size):
             logger.warning(
                 "{} resolution capture mode not available. Selected {}.".format(
                     new_size, size
                 )
             )
-        self.uvc_capture.frame_size = size
         self.frame_size_backup = size
 
         self._intrinsics = load_intrinsics(
             self.g_pool.user_dir, self.name, self.frame_size
         )
 
+    @height.setter
+    def height(self, new_height):
+        self.frame_size = (new_height, self.frame_size[1])
+
+    @width.setter
+    def height(self, new_width):
+        self.frame_size = (self.frame_size[0], new_width)
+
+    def set_feature(self, name, value):
+        # the set_feature function in python-aravis doesn't work
+        # here is a workaround inspired by arv-tool sourcecode
+        feat = self.aravis_capture.dev.get_feature(name)
+        feat.set_value(value)
+        return feat.get_value()
 
     @property
     def frame_rate(self):
         if self.aravis_capture:
-            return self.uvc_capture.frame_rate
+            return self.aravis_capture.get_feature('FPS')
         else:
             return self.frame_rate_backup
 
     @frame_rate.setter
     def frame_rate(self, new_rate):
-        # closest match for rate
-        rates = [abs(r - new_rate) for r in self.uvc_capture.frame_rates]
-        best_rate_idx = rates.index(min(rates))
-        rate = self.uvc_capture.frame_rates[best_rate_idx]
-        if rate != new_rate:
-            logger.warning(
-                "{}fps capture mode not available at ({}) on '{}'. Selected {}fps. ".format(
-                    new_rate, self.uvc_capture.frame_size, self.uvc_capture.name, rate
-                )
-            )
-        self.uvc_capture.frame_rate = rate
+        rate = self.set_feature('FPS', new_rate)
         self.frame_rate_backup = rate
 
     @property
     def exposure_time(self):
-        if self.uvc_capture:
-            try:
-                controls_dict = dict(
-                    [(c.display_name, c) for c in self.uvc_capture.controls]
-                )
-                return controls_dict["Absolute Exposure Time"].value
-            except KeyError:
-                return None
-        else:
-            return self.exposure_time_backup
+        pass
 
     @exposure_time.setter
     def exposure_time(self, new_et):
-        try:
-            controls_dict = dict(
-                [(c.display_name, c) for c in self.uvc_capture.controls]
-            )
-            if abs(new_et - controls_dict["Absolute Exposure Time"].value) >= 1:
-                controls_dict["Absolute Exposure Time"].value = new_et
-        except KeyError:
-            pass
+        pass
 
     @property
     def jpeg_support(self):
@@ -190,14 +198,14 @@ class Aravis_Source(Base_Source):
 
     @property
     def online(self):
-        return bool(self.uvc_capture)
+        return bool(self.aravis_capture)
 
     def deinit_ui(self):
         self.remove_menu()
 
     def init_ui(self):
         self.add_menu()
-        self.menu.label = "Local USB Source: {}".format(self.name)
+        self.menu.label = "Aravis Source: {}".format(self.name)
         self.update_menu()
 
     def update_menu(self):
@@ -207,26 +215,7 @@ class Aravis_Source(Base_Source):
 
         ui_elements = []
 
-        # lets define some  helper functions:
-        def gui_load_defaults():
-            for c in self.uvc_capture.controls:
-                try:
-                    c.value = c.def_val
-                except:
-                    pass
-
-        def gui_update_from_device():
-            for c in self.uvc_capture.controls:
-                c.refresh()
-
-        def set_frame_size(new_size):
-            self.frame_size = new_size
-
-        def set_frame_rate(new_rate):
-            self.frame_rate = new_rate
-            self.update_menu()
-
-        if self.uvc_capture is None:
+        if self.aravis_capture is None:
             ui_elements.append(ui.Info_Text("Capture initialization failed."))
             self.menu.extend(ui_elements)
             return
@@ -241,39 +230,46 @@ class Aravis_Source(Base_Source):
         image_processing.collapsed = True
 
         sensor_control.append(
-            ui.Selector(
-                "frame_size",
+            ui.Slider(
+                "width",
                 self,
-                setter=set_frame_size,
-                selection=self.uvc_capture.frame_sizes,
-                label="Resolution",
+                min=73,
+                max=640,
+                step = 1,
+                label="Width",
             )
         )
 
-        def frame_rate_getter():
-            return (
-                self.uvc_capture.frame_rates,
-                [str(fr) for fr in self.uvc_capture.frame_rates],
+        sensor_control.append(
+            ui.Slider(
+                "height",
+                self,
+                min=73,
+                max=640,
+                step = 1,
+                label="Height",
             )
+        )
 
         sensor_control.append(
-            ui.Selector(
+            ui.Slider(
                 "frame_rate",
                 self,
-                selection_getter=frame_rate_getter,
-                setter=set_frame_rate,
+                min=10,
+                max=1076,
+                step=1,
                 label="Frame rate",
             )
         )
+        ui_elements.append(sensor_control)
 
         self.menu.extend(ui_elements)
 
     def cleanup(self):
-        self.devices.cleanup()
-        self.devices = None
-        if self.uvc_capture:
-            self.uvc_capture.close()
-            self.uvc_capture = None
+        if self.aravis_capture:
+            self.aravis_capture.stop_acquisition()
+            self.aravis_capture.shutdown()
+            self.aravis_capture = None
         super().cleanup()
 
 
@@ -299,12 +295,13 @@ class Aravis_Manager(Base_Manager):
 
         self.add_auto_select_button()
         ui_elements = []
-        ui_elements.append(ui.Info_Text("Local UVC sources"))
+        ui_elements.append(ui.Info_Text("Aravis sources"))
 
         def dev_selection_list():
-            default = ("Select to activate")
+            default = (None, "Select to activate")
             self.devices = aravis.get_device_ids()
-            dev_pairs = [default] + self.devices
+            dev_pairs = [default] + [(dev,dev) for dev in self.devices]
+            return zip(*dev_pairs)
 
         ui_elements.append(
             ui.Selector(
