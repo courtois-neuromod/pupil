@@ -37,6 +37,8 @@ from .fake_backend import Fake_Source, Fake_Manager
 from .file_backend import FileSeekError
 from .file_backend import File_Source, File_Manager
 from .uvc_backend import UVC_Source, UVC_Manager
+from .aravis_backend import Aravis_Source, Aravis_Manager
+
 
 source_classes = [File_Source, UVC_Source, Fake_Source]
 manager_classes = [File_Manager, UVC_Manager, Fake_Manager]
@@ -67,3 +69,14 @@ except ImportError as ie:
 else:
     source_classes.append(Realsense2_Source)
     manager_classes.append(Realsense2_Manager)
+
+try:
+    from .aravis_backend import Aravis_Source, Aravis_Manager
+except ImportError as ie:
+    print(ie)
+    logger.info(
+        "Install aravis and python-aravis to use the Aravis backend"
+    )
+else:
+    source_classes.append(Aravis_Source)
+    manager_classes.append(Aravis_Manager)
