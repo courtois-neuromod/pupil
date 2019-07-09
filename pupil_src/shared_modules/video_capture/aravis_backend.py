@@ -12,6 +12,7 @@ See COPYING and COPYING.LESSER for license details.
 import time
 import logging
 import aravis
+import numpy as np
 from version_utils import VersionFormat
 from .base_backend import InitialisationError, Base_Source, Base_Manager
 from camera_models import load_intrinsics
@@ -65,10 +66,11 @@ class Aravis_Source(Base_Source):
         g_pool,
         frame_size,
         frame_rate,
+        exposure_time,
         name=None,
         uid=None,
         exposure_mode="manual",
-        nbuffers=250
+        nbuffers=1000
     ):
 
         super().__init__(g_pool)
@@ -87,32 +89,64 @@ class Aravis_Source(Base_Source):
                     "No Aravis camera found or error in initialization"
                 )
                 logger.warning(str(e))
-        self.current_frame_idx = 0
-        self.aravis_capture.start_acquisition(nbuffers)
+
+        self.frame_size_backup = frame_size
+        self.frame_rate_backup = frame_rate
+        self.exposure_time_backup = exposure_time
+
+        self.uid = uid
+        if self.aravis_capture:
+            self.set_feature('GevSCPSPacketSize', 1500)
+            self.current_frame_idx = 0
+
+            # set exposure to the minimum, should work in semi-dark environment
+            self.exposure_time = 0
+            self._set_dark_image = True
+            self.aravis_capture.start_acquisition(nbuffers)
+            frame = None
+            while frame is None:
+                frame = self.get_frame()
+            logger.info("Min=Max frame value %d-%d"%(frame.gray.min(),frame.gray.max()))
+            self.exposure_time = self.exposure_time_backup
+        else:
+            self._intrinsics = load_intrinsics(
+                self.g_pool.user_dir, self.name, self.frame_size
+            )
 
     def configure_capture(self, frame_size, frame_rate, controls):
         pass
 
-    def recent_events(self, events):
-        try:
+    def get_frame(self):
             ts, data = self.aravis_capture.try_pop_frame(timestamp=True)
             if data is None:
                 return
-            print(ts, data.shape)
             index = self.current_frame_idx
             self.current_frame_idx += 1
-            frame = Frame(ts, data, index)
-        except Exception:
-            #TODO
-            pass
-        else:
-            self._recent_frame = frame
-            events["frame"] = frame
+
+            if self._set_dark_image:
+                self.dark_image = data.copy()
+                self._set_dark_image = False
+                self.exposure_time = self.exposure_time_backup
+            if not self.dark_image is None:
+                data = (data.astype(np.int16)-self.dark_image).astype(np.uint8)
+                #data -= self.dark_image
+                #data *= 1.5
+
+            return Frame(ts, data, index)
+
+    def recent_events(self, events):
+        if self.aravis_capture is None:
+            return
+        frame = self.get_frame()
+
+        self._recent_frame = frame
+        events["frame"] = frame
 
     def get_init_dict(self):
         d = super().get_init_dict()
         d["frame_size"] = self.frame_size
         d["frame_rate"] = self.frame_rate
+        d["exposure_time"] = self.exposure_time
         if self.aravis_capture:
             d["name"] = self.name
 #            d["uvc_controls"] = self._get_uvc_controls()
@@ -122,28 +156,34 @@ class Aravis_Source(Base_Source):
     def name(self):
         if self.aravis_capture:
             return "%s %s"%(self.aravis_capture.name, self.aravis_capture.get_device_id())
+        else:
+            return 'Ghost capture'
 
     @property
     def height(self):
         if self.aravis_capture:
             return self.aravis_capture.get_feature('Height')
+        else:
+            return self.frame_size_backup[1]
 
     @property
     def width(self):
         if self.aravis_capture:
             return self.aravis_capture.get_feature('Width')
+        else:
+            return self.frame_size_backup[0]
 
     @property
     def frame_size(self):
-        return (self.height, self.width)
+        return (self.width, self.height)
 
     @frame_size.setter
     def frame_size(self, new_size):
-        # closest match for size
+        self.aravis_capture.stop_acquisition()
 
-        height = self.set_feature('Height', new_size[0])
-        width = self.set_feature('Width', new_size[1])
-        size = (height, width)
+        height = self.set_feature('Height', new_size[1])
+        width = self.set_feature('Width', new_size[0])
+        size = (width, height)
 
         if tuple(size) != tuple(new_size):
             logger.warning(
@@ -157,13 +197,17 @@ class Aravis_Source(Base_Source):
             self.g_pool.user_dir, self.name, self.frame_size
         )
 
+        self.dark_image = None
+        self.aravis_capture.start_acquisition()
+
+
     @height.setter
     def height(self, new_height):
-        self.frame_size = (new_height, self.frame_size[1])
+        self.frame_size = (self.frame_size[0], new_height)
 
     @width.setter
-    def height(self, new_width):
-        self.frame_size = (self.frame_size[0], new_width)
+    def width(self, new_width):
+        self.frame_size = (new_width, self.frame_size[1])
 
     def set_feature(self, name, value):
         # the set_feature function in python-aravis doesn't work
@@ -181,16 +225,38 @@ class Aravis_Source(Base_Source):
 
     @frame_rate.setter
     def frame_rate(self, new_rate):
+        self.aravis_capture.stop_acquisition()
         rate = self.set_feature('FPS', new_rate)
         self.frame_rate_backup = rate
+        self.aravis_capture.start_acquisition()
+
+    @property
+    def global_gain(self):
+        if self.aravis_capture:
+            return self.aravis_capture.get_feature('GlobalGain')
+        else:
+            return 1
+
+    @frame_rate.setter
+    def global_gain(self, new_gain):
+        gain = self.set_feature('GlobalGain', new_gain)
 
     @property
     def exposure_time(self):
-        pass
+        if self.aravis_capture:
+            return self.aravis_capture.get_feature('ExposureTime')
+        else:
+            return self.exposure_time_backup
 
     @exposure_time.setter
     def exposure_time(self, new_et):
-        pass
+        if self.aravis_capture:
+            self.aravis_capture.set_feature('ExposureTime', new_et)
+
+    def set_dark_image(self):
+        self.exposure_time_backup = self.exposure_time
+        self.exposure_time = 0
+        self._set_dark_image = True
 
     @property
     def jpeg_support(self):
@@ -226,15 +292,13 @@ class Aravis_Source(Base_Source):
             ui.Info_Text("Do not change these during calibration or recording!")
         )
         sensor_control.collapsed = False
-        image_processing = ui.Growing_Menu(label="Image Post Processing")
-        image_processing.collapsed = True
 
         sensor_control.append(
             ui.Slider(
                 "width",
                 self,
-                min=73,
-                max=640,
+                min=20,
+                max=self.aravis_capture.get_feature('WidthMax'),
                 step = 1,
                 label="Width",
             )
@@ -244,8 +308,8 @@ class Aravis_Source(Base_Source):
             ui.Slider(
                 "height",
                 self,
-                min=73,
-                max=640,
+                min=20,
+                max=self.aravis_capture.get_feature('HeightMax'),
                 step = 1,
                 label="Height",
             )
@@ -261,8 +325,37 @@ class Aravis_Source(Base_Source):
                 label="Frame rate",
             )
         )
+
+        sensor_control.append(
+            ui.Slider(
+                "exposure_time",
+                self,
+                min=8,
+                max=33980,
+                step=8,
+                label="Exposure Time",
+            )
+        )
+
+        sensor_control.append(
+            ui.Slider(
+                "global_gain",
+                self,
+                min=0,
+                max=16,
+                step=1,
+                label="Global gain",
+            )
+        )
+
         ui_elements.append(sensor_control)
 
+        image_processing = ui.Growing_Menu(label="Image Post Processing")
+        image_processing.collapsed = True
+
+        image_processing.append(ui.Button("set dark image", self.set_dark_image))
+
+        ui_elements.append(image_processing)
         self.menu.extend(ui_elements)
 
     def cleanup(self):
@@ -329,6 +422,7 @@ class Aravis_Manager(Base_Manager):
         settings = {
             "frame_size": self.g_pool.capture.frame_size,
             "frame_rate": self.g_pool.capture.frame_rate,
+            "exposure_time": 8,
             "uid": source_uid,
         }
         if self.g_pool.process == "world":
