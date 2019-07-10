@@ -67,6 +67,7 @@ class Aravis_Source(Base_Source):
         frame_size,
         frame_rate,
         exposure_time,
+        global_gain,
         name=None,
         uid=None,
         exposure_mode="manual",
@@ -93,10 +94,13 @@ class Aravis_Source(Base_Source):
         self.frame_size_backup = frame_size
         self.frame_rate_backup = frame_rate
         self.exposure_time_backup = exposure_time
+        self.global_gain_backup = global_gain
 
         self.uid = uid
         if self.aravis_capture:
+            self.aravis_capture.stream.set_property('packet_timeout',100000)
             self.set_feature('GevSCPSPacketSize', 1500)
+            self.timestamp_freq = float(self.aravis_capture.get_feature('GevTimestampTickFrequency'))
             self.current_frame_idx = 0
 
             # set exposure to the minimum, should work in semi-dark environment
@@ -107,6 +111,7 @@ class Aravis_Source(Base_Source):
             while frame is None:
                 frame = self.get_frame()
             logger.info("Min=Max frame value %d-%d"%(frame.gray.min(),frame.gray.max()))
+            logger.info("Setting exposure back to %d"%self.exposure_time_backup)
             self.exposure_time = self.exposure_time_backup
         else:
             self._intrinsics = load_intrinsics(
@@ -128,11 +133,13 @@ class Aravis_Source(Base_Source):
                 self._set_dark_image = False
                 self.exposure_time = self.exposure_time_backup
             if not self.dark_image is None:
-                data = (data.astype(np.int16)-self.dark_image).astype(np.uint8)
+                np.subtract(data, self.dark_image, data)
+                #data = (data.astype(np.int16)-self.dark_image).astype(np.uint8)
                 #data -= self.dark_image
                 #data *= 1.5
 
-            return Frame(ts, data, index)
+            return Frame(time.time(), data, index)
+            #return Frame(ts/self.timestamp_freq, data, index)
 
     def recent_events(self, events):
         if self.aravis_capture is None:
@@ -147,6 +154,7 @@ class Aravis_Source(Base_Source):
         d["frame_size"] = self.frame_size
         d["frame_rate"] = self.frame_rate
         d["exposure_time"] = self.exposure_time
+        d["global_gain"] = self.global_gain
         if self.aravis_capture:
             d["name"] = self.name
 #            d["uvc_controls"] = self._get_uvc_controls()
@@ -161,14 +169,14 @@ class Aravis_Source(Base_Source):
 
     @property
     def height(self):
-        if self.aravis_capture:
+        if not self.frame_size_backup and self.aravis_capture:
             return self.aravis_capture.get_feature('Height')
         else:
             return self.frame_size_backup[1]
 
     @property
     def width(self):
-        if self.aravis_capture:
+        if not self.frame_size_backup and self.aravis_capture:
             return self.aravis_capture.get_feature('Width')
         else:
             return self.frame_size_backup[0]
@@ -233,13 +241,13 @@ class Aravis_Source(Base_Source):
     @property
     def global_gain(self):
         if self.aravis_capture:
-            return self.aravis_capture.get_feature('GlobalGain')
+            return int(self.aravis_capture.get_feature('GlobalGain'))
         else:
             return 1
 
-    @frame_rate.setter
+    @global_gain.setter
     def global_gain(self, new_gain):
-        gain = self.set_feature('GlobalGain', new_gain)
+        gain = self.set_feature('GlobalGain', int(new_gain))
 
     @property
     def exposure_time(self):
@@ -320,8 +328,8 @@ class Aravis_Source(Base_Source):
                 "frame_rate",
                 self,
                 min=10,
-                max=1076,
-                step=1,
+                max=1077,
+                step=8,
                 label="Frame rate",
             )
         )
@@ -422,7 +430,8 @@ class Aravis_Manager(Base_Manager):
         settings = {
             "frame_size": self.g_pool.capture.frame_size,
             "frame_rate": self.g_pool.capture.frame_rate,
-            "exposure_time": 8,
+            "exposure_time": 4000,
+            "global_gain": 1,
             "uid": source_uid,
         }
         if self.g_pool.process == "world":
