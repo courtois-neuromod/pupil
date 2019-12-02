@@ -79,7 +79,7 @@ else:
     from launchables.player import player
 from launchables.player import player_drop
 from launchables.marker_detectors import circle_detector
-
+#from launchables.eye import eye_profiled as eye
 
 def clear_settings(user_dir):
     import glob, os, time

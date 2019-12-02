@@ -492,7 +492,7 @@ def eye(
         cpu_graph = graph.Bar_Graph()
         cpu_graph.pos = (20, 50)
         cpu_graph.update_fn = ps.cpu_percent
-        cpu_graph.update_rate = 5
+        cpu_graph.update_rate = 25
         cpu_graph.label = "CPU %0.1f"
 
         fps_graph = graph.Bar_Graph()
@@ -710,7 +710,7 @@ def eye(
                     result["topic"] = "pupil.{}".format(eye_id)
                     pupil_socket.send(result)
 
-            cpu_graph.update()
+                cpu_graph.update()
 
             # GL drawing
             if window_should_update():
@@ -905,4 +905,3 @@ def eye_profiled(
             eye_id
         )
     )
-

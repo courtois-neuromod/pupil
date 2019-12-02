@@ -11,12 +11,14 @@ See COPYING and COPYING.LESSER for license details.
 
 import time
 import logging
-import aravis
 import numpy as np
+import ctypes
 from version_utils import VersionFormat
 from .base_backend import InitialisationError, Base_Source, Base_Manager
 from camera_models import load_intrinsics
 from .utils import Check_Frame_Stripes, Exposure_Time
+
+from gi.repository import Aravis
 
 # logging
 logger = logging.getLogger(__name__)
@@ -35,7 +37,6 @@ class Frame(object):
             self._gray = self._frame
         if self._frame.ndim == 3:
             self.img = self._frame
-        self.jpeg_buffer = None
         self.yuv_buffer = None
         self.height, self.width = frame.shape[:2]
 
@@ -58,7 +59,7 @@ class Frame(object):
 
 class Aravis_Source(Base_Source):
     """
-    Camera Capture is a class that encapsulates oython-aravis
+    Camera Capture is a class that encapsulates python-aravis
     """
 
     def __init__(
@@ -71,12 +72,14 @@ class Aravis_Source(Base_Source):
         name=None,
         uid=None,
         exposure_mode="manual",
-        nbuffers=1000
+        nbuffers=100
     ):
 
         super().__init__(g_pool)
-        self.aravis_capture = None
+        self.cam = None
         self._restart_in = 3
+        self._status = False
+        self._set_dark_image = True
 
         logger.warning(
             "Activating camera: %s" % uid
@@ -84,68 +87,143 @@ class Aravis_Source(Base_Source):
         # if uid is supplied we init with that
         if uid:
             try:
-                self.aravis_capture = aravis.Camera(uid)
-            except aravis.AravisException as e:
+                self.cam = Aravis.Camera.new(uid)
+                #self.aravis_capture = aravis.Camera(uid)
+            #except aravis.AravisException as e:
+            except TypeError as e:
                 logger.warning(
                     "No Aravis camera found or error in initialization"
                 )
                 logger.warning(str(e))
 
+        self.uid = uid
         self.frame_size_backup = frame_size
         self.frame_rate_backup = frame_rate
         self.exposure_time_backup = exposure_time
         self.global_gain_backup = global_gain
+        self.nbuffers = nbuffers
 
-        self.uid = uid
-        if self.aravis_capture:
-            self.aravis_capture.stream.set_property('packet_timeout',100000)
+        if self.cam:
+
+            self.dev = self.cam.get_device()
+            self.stream = self.cam.create_stream(None, None)
+            if self.stream is None:
+                raise RuntimeError("Error creating stream")
+            self.payload = 0
+
+            self.stream.set_property('packet_timeout',100000)
             self.set_feature('GevSCPSPacketSize', 1500)
-            self.timestamp_freq = float(self.aravis_capture.get_feature('GevTimestampTickFrequency'))
+            self.timestamp_freq = self.get_feature('GevTimestampTickFrequency')
             self.current_frame_idx = 0
 
-            # set exposure to the minimum, should work in semi-dark environment
-            self.exposure_time = 0
-            self._set_dark_image = True
-            self.aravis_capture.start_acquisition(nbuffers)
-            frame = None
-            while frame is None:
-                frame = self.get_frame()
-            logger.info("Min=Max frame value %d-%d"%(frame.gray.min(),frame.gray.max()))
-            logger.info("Setting exposure back to %d"%self.exposure_time_backup)
-            self.exposure_time = self.exposure_time_backup
+            self.exposure_time = exposure_time
+            self.global_gain = global_gain
+            self.frame_size = frame_size
+            self.frame_rate = frame_rate
+
         else:
             self._intrinsics = load_intrinsics(
                 self.g_pool.user_dir, self.name, self.frame_size
             )
 
-    def configure_capture(self, frame_size, frame_rate, controls):
-        pass
+
+    def create_buffers(self):
+
+        payload = self.cam.get_payload()
+        if payload == self.payload and sum(self.stream.get_n_buffers())==self.nbuffers:
+            return
+
+        # flush all buffers
+        buf = True
+        while buf:
+            buf = self.stream.try_pop_buffer()
+
+        self.payload = payload
+        logger.info("Creating %d memory buffers of size %d"%(self.nbuffers, payload))
+        for _ in range(0, self.nbuffers):
+            self.stream.push_buffer(Aravis.Buffer.new_allocate(payload))
+
+    def _start_capture(self):
+        # set exposure to the minimum, should work in semi-dark environment
+        self.exposure_time_backup = self.exposure_time
+        self.exposure_time = 0
+
+        self._set_dark_image = True
+
+        self.create_buffers()
+        self.cam.start_acquisition()
+        frame = None
+        while frame is None:
+            frame = self.get_frame()
+
+        self.exposure_time = self.exposure_time_backup
+        self._status = True
+        logger.info('started capture successfully')
+
+    def _stop_capture(self):
+        self.cam.stop_acquisition()
+        if self.stream:
+            self.stream.set_emit_signals(False)
+        self._status = False
+
+    @property
+    def status(self):
+        return self._status
+
+    @status.setter
+    def status(self, value):
+        if value:
+            self._start_capture()
+        else:
+            self._stop_capture()
 
     def get_frame(self):
-            ts, data = self.aravis_capture.try_pop_frame(timestamp=True)
-            if data is None:
-                return
-            index = self.current_frame_idx
-            self.current_frame_idx += 1
+        buf = self.stream.try_pop_buffer()
+        print(self.stream.get_n_buffers())
+        if buf and buf.get_status() == Aravis.BufferStatus.SUCCESS:
+            data = self._array_from_buffer_address(buf)
+            self.stream.push_buffer(buf)
+            ts = buf.get_timestamp()
+        else:
+            if buf:
+                logger.warning('WRONG buffer STATUS %d'%buf.get_status())
+                self.stream.push_buffer(buf)
+            return None
 
-            if self._set_dark_image:
-                self.dark_image = data.copy()
-                self._set_dark_image = False
-                self.exposure_time = self.exposure_time_backup
-            if not self.dark_image is None:
-                np.subtract(data, self.dark_image, data)
-                #data = (data.astype(np.int16)-self.dark_image).astype(np.uint8)
-                #data -= self.dark_image
-                #data *= 1.5
+        index = self.current_frame_idx
+        self.current_frame_idx += 1
 
-            return Frame(time.time(), data, index)
-            #return Frame(ts/self.timestamp_freq, data, index)
+        if self._set_dark_image:
+            self.dark_image = data.copy()
+            self._set_dark_image = False
+
+        if not self.dark_image is None:
+            np.subtract(data, self.dark_image, data)
+
+        return Frame(time.time(), data, index)
+        #return Frame(ts/self.timestamp_freq, data, index)
+
+    def _array_from_buffer_address(self, buf):
+        if not buf:
+            return None
+        pixel_format = buf.get_image_pixel_format()
+        bits_per_pixel = pixel_format >> 16 & 0xff
+        if bits_per_pixel == 8:
+            INTP = ctypes.POINTER(ctypes.c_uint8)
+        else:
+            INTP = ctypes.POINTER(ctypes.c_uint16)
+        addr = buf.get_data()
+        ptr = ctypes.cast(addr, INTP)
+        im = np.ctypeslib.as_array(ptr, (buf.get_image_height(), buf.get_image_width()))
+        im = im.copy()
+        return im
 
     def recent_events(self, events):
-        if self.aravis_capture is None:
+        if (self.cam is None) or (not self._status):
             return
         frame = self.get_frame()
-
+        if frame is None:
+            return
         self._recent_frame = frame
         events["frame"] = frame
 
@@ -155,29 +233,27 @@ class Aravis_Source(Base_Source):
         d["frame_rate"] = self.frame_rate
         d["exposure_time"] = self.exposure_time
         d["global_gain"] = self.global_gain
-        if self.aravis_capture:
-            d["name"] = self.name
-#            d["uvc_controls"] = self._get_uvc_controls()
+        d["uid"] = self.uid
         return d
 
     @property
     def name(self):
-        if self.aravis_capture:
-            return "%s %s"%(self.aravis_capture.name, self.aravis_capture.get_device_id())
+        if self.cam:
+            return self.uid
         else:
             return 'Ghost capture'
 
     @property
     def height(self):
-        if not self.frame_size_backup and self.aravis_capture:
-            return self.aravis_capture.get_feature('Height')
+        if self.cam:
+            return self.get_feature('Height')
         else:
             return self.frame_size_backup[1]
 
     @property
     def width(self):
-        if not self.frame_size_backup and self.aravis_capture:
-            return self.aravis_capture.get_feature('Width')
+        if self.cam:
+            return self.get_feature('Width')
         else:
             return self.frame_size_backup[0]
 
@@ -187,12 +263,20 @@ class Aravis_Source(Base_Source):
 
     @frame_size.setter
     def frame_size(self, new_size):
-        self.aravis_capture.stop_acquisition()
-
+        if new_size == self.frame_size:
+            return
         height = self.set_feature('Height', new_size[1])
         width = self.set_feature('Width', new_size[0])
         size = (width, height)
 
+        """
+        r_x,r_y,r_w,r_h,r_s= self.g_pool.u_r.get()
+        if r_x+r_w > width:
+            r_w = width-r_x
+        if r_y+r_h > height:
+            r_h = height-r_y
+        self.g_pool.u_r = UIRoi(r_x,r_y,r_w,r_h,new_size)
+        """
         if tuple(size) != tuple(new_size):
             logger.warning(
                 "{} resolution capture mode not available. Selected {}.".format(
@@ -206,8 +290,6 @@ class Aravis_Source(Base_Source):
         )
 
         self.dark_image = None
-        self.aravis_capture.start_acquisition()
-
 
     @height.setter
     def height(self, new_height):
@@ -217,33 +299,82 @@ class Aravis_Source(Base_Source):
     def width(self, new_width):
         self.frame_size = (new_width, self.frame_size[1])
 
-    def set_feature(self, name, value):
+
+    def get_feature_type(self, name):
+        genicam = self.dev.get_genicam()
+        node = genicam.get_node(name)
+        if not node:
+            raise AravisException("Feature {} does not seem to exist in camera".format(name))
+        return node.get_node_name()
+
+    def set_feature(self, name, val):
+
+        ntype = self.get_feature_type(name)
+        if ntype in ("String", "Enumeration", "StringReg"):
+            return self.dev.set_string_feature_value(name, val)
+        elif ntype == "Integer":
+            return self.dev.set_integer_feature_value(name, int(val))
+        elif ntype == "MaskedIntReg" or ntype == "IntReg":
+            return Aravis.GcStructEntryNode.set_value(
+                self.dev.get_genicam().get_node(name), int(val))
+        elif ntype == "Float":
+            return self.dev.set_float_feature_value(name, float(val))
+        elif ntype == "Boolean":
+            return self.dev.set_integer_feature_value(name, int(val))
+        else:
+            self.logger.warning("Feature type not implemented: %s", ntype)
+
+        """
         # the set_feature function in python-aravis doesn't work
         # here is a workaround inspired by arv-tool sourcecode
-        feat = self.aravis_capture.dev.get_feature(name)
+        feat = self.dev.get_feature(name)
+        if feat is None:
+            return
         feat.set_value(value)
         return feat.get_value()
+        """
+
+    def get_feature(self, name):
+        ntype = self.get_feature_type(name)
+        if ntype in ("Enumeration", "String", "StringReg"):
+            return self.dev.get_string_feature_value(name)
+        elif ntype == "Integer":
+            return self.dev.get_integer_feature_value(name)
+        elif ntype == "MaskedIntReg" or ntype == "IntReg":
+            return Aravis.GcStructEntryNode.get_value(
+                self.dev.get_genicam().get_node(name))
+        elif ntype == "Float":
+            return self.dev.get_float_feature_value(name)
+        elif ntype == "Boolean":
+            return self.dev.get_integer_feature_value(name)
+        else:
+            self.logger.warning("Feature type not implemented: %s", ntype)
+
+        """
+        feat = self.dev.get_feature(name)
+        if feat is None:
+            return
+        return feat.get_value()
+        """
 
     @property
     def frame_rate(self):
-        if self.aravis_capture:
-            return self.aravis_capture.get_feature('FPS')
+        if self.cam:
+            return self.get_feature('FPS')
         else:
             return self.frame_rate_backup
 
     @frame_rate.setter
     def frame_rate(self, new_rate):
-        self.aravis_capture.stop_acquisition()
         rate = self.set_feature('FPS', new_rate)
         self.frame_rate_backup = rate
-        self.aravis_capture.start_acquisition()
 
     @property
     def global_gain(self):
-        if self.aravis_capture:
-            return int(self.aravis_capture.get_feature('GlobalGain'))
+        if self.cam:
+            return int(self.get_feature('GlobalGain'))
         else:
-            return 1
+            return self.global_gain_backup
 
     @global_gain.setter
     def global_gain(self, new_gain):
@@ -251,15 +382,15 @@ class Aravis_Source(Base_Source):
 
     @property
     def exposure_time(self):
-        if self.aravis_capture:
-            return self.aravis_capture.get_feature('ExposureTime')
+        if self.cam:
+            return self.get_feature('ExposureTime')
         else:
             return self.exposure_time_backup
 
     @exposure_time.setter
     def exposure_time(self, new_et):
-        if self.aravis_capture:
-            self.aravis_capture.set_feature('ExposureTime', new_et)
+        if self.cam:
+            self.set_feature('ExposureTime', new_et)
 
     def set_dark_image(self):
         self.exposure_time_backup = self.exposure_time
@@ -268,11 +399,11 @@ class Aravis_Source(Base_Source):
 
     @property
     def jpeg_support(self):
-        return True
+        return False
 
     @property
     def online(self):
-        return bool(self.aravis_capture)
+        return bool(self.cam)
 
     def deinit_ui(self):
         self.remove_menu()
@@ -289,7 +420,7 @@ class Aravis_Source(Base_Source):
 
         ui_elements = []
 
-        if self.aravis_capture is None:
+        if self.cam is None:
             ui_elements.append(ui.Info_Text("Capture initialization failed."))
             self.menu.extend(ui_elements)
             return
@@ -300,24 +431,35 @@ class Aravis_Source(Base_Source):
             ui.Info_Text("Do not change these during calibration or recording!")
         )
         sensor_control.collapsed = False
-
+        """
+        sensor_control.append(
+            ui.Selector(
+                "frame_size",
+                self,
+                selection=[(640,480),(320,240),(256,256)],
+                label="Frame size",
+            )
+        )
+        """
         sensor_control.append(
             ui.Slider(
                 "width",
                 self,
                 min=20,
-                max=self.aravis_capture.get_feature('WidthMax'),
+                max=self.get_feature('WidthMax'),
                 step = 1,
                 label="Width",
             )
         )
+
+
 
         sensor_control.append(
             ui.Slider(
                 "height",
                 self,
                 min=20,
-                max=self.aravis_capture.get_feature('HeightMax'),
+                max=self.get_feature('HeightMax'),
                 step = 1,
                 label="Height",
             )
@@ -366,11 +508,17 @@ class Aravis_Source(Base_Source):
         ui_elements.append(image_processing)
         self.menu.extend(ui_elements)
 
+        self.startstop = ui.Thumb(
+            "status", self, label="S", hotkey="g"
+        )
+        self.g_pool.quickbar = ui.Stretching_Menu("Quick Bar", (0, 100), (100, -100))
+        self.g_pool.quickbar.insert(0, self.startstop)
+        self.g_pool.gui.append(self.g_pool.quickbar)
+
     def cleanup(self):
-        if self.aravis_capture:
-            self.aravis_capture.stop_acquisition()
-            self.aravis_capture.shutdown()
-            self.aravis_capture = None
+        if self.cam:
+            self.cam.stop_acquisition()
+            self.cam = None
         super().cleanup()
 
 
@@ -384,7 +532,7 @@ class Aravis_Manager(Base_Manager):
     def __init__(self, g_pool):
         super().__init__(g_pool)
 
-        self.devices = aravis.get_device_ids()
+        self.devices = []
 
     def get_init_dict(self):
         return {}
@@ -399,8 +547,11 @@ class Aravis_Manager(Base_Manager):
         ui_elements.append(ui.Info_Text("Aravis sources"))
 
         def dev_selection_list():
+            Aravis.update_device_list()
+            n = Aravis.get_n_devices()
+            self.devices = [Aravis.get_device_id(i) for i in range(0, n)]
+
             default = (None, "Select to activate")
-            self.devices = aravis.get_device_ids()
             dev_pairs = [default] + [(dev,dev) for dev in self.devices]
             return zip(*dev_pairs)
 

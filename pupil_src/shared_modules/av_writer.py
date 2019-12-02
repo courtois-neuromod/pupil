@@ -96,7 +96,9 @@ class AV_Writer(object):
         self,
         file_loc,
         fps=30,
-        video_stream={"codec": "mpeg4", "bit_rate": 15000 * 10e3},
+#        video_stream={"codec": "mpeg4", "bit_rate": 15000 * 10e3},
+#        video_stream={"codec": "libx264", "bit_rate": 15000 * 1e3, 'options': {'preset':'faster'}},
+        video_stream={"codec": "libx265", "bit_rate": 30000 * 1e3, 'pix_fmt':'gray', 'options': {'preset':'ultrafast'}},
         audio_dir=None,
         use_timestamps=False,
     ):
@@ -123,11 +125,15 @@ class AV_Writer(object):
             self.time_base = Fraction(1000, self.fps * 1000)  # timebase is fps
 
         self.video_stream = self.container.add_stream(
-            video_stream["codec"], 1 / self.time_base
+            video_stream["codec"],
+            1 / self.time_base,
+            options=video_stream["options"]
         )
         self.video_stream.bit_rate = video_stream["bit_rate"]
         self.video_stream.bit_rate_tolerance = video_stream["bit_rate"] / 20
         self.video_stream.thread_count = max(1, mp.cpu_count() - 1)
+        if 'pix_fmt' in video_stream:
+            self.video_stream.pix_fmt = video_stream['pix_fmt']
         # self.video_stream.pix_fmt = "yuv420p"
 
         if audio_dir is not None:
@@ -175,6 +181,10 @@ class AV_Writer(object):
             self.frame = av.VideoFrame(
                 template_frame.width, template_frame.height, "yuv422p"
             )
+        elif template_frame.gray is not None:
+            self.frame = av.VideoFrame(
+                template_frame.width, template_frame.height, "gray"
+            )
         else:
             self.frame = av.VideoFrame(
                 template_frame.width, template_frame.height, "bgr24"
@@ -190,6 +200,8 @@ class AV_Writer(object):
             self.frame.planes[0].update(y)
             self.frame.planes[1].update(u)
             self.frame.planes[2].update(v)
+        elif input_frame.gray is not None:
+            self.frame.planes[0].update(input_frame.gray)
         else:
             self.frame.planes[0].update(input_frame.img)
 

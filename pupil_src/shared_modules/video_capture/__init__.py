@@ -69,6 +69,7 @@ else:
     manager_classes.append(Realsense2_Manager)
 
 try:
+    from gi.repository import Aravis
     from .aravis_backend import Aravis_Source, Aravis_Manager
 except ImportError as ie:
     print(ie)
