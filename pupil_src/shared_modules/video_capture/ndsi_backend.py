@@ -11,6 +11,7 @@ See COPYING and COPYING.LESSER for license details.
 
 import time
 import logging
+from packaging.version import Version
 
 import ndsi
 
@@ -20,7 +21,7 @@ from camera_models import load_intrinsics
 try:
     from ndsi import __version__
 
-    assert __version__ >= "0.4"
+    assert Version(__version__) >= Version("1.0.dev0")
     from ndsi import __protocol_version__
 except (ImportError, AssertionError):
     raise Exception("pyndsi version is to old. Please upgrade") from None
@@ -321,7 +322,7 @@ class NDSI_Source(Base_Source):
                     menu.append(ctrl_ui)
                 else:
                     logger.error("Did not generate UI for {}".format(ctrl_id))
-            except:
+            except Exception:
                 logger.error("Exception for control:\n{}".format(ctrl_dict))
                 import traceback as tb
 
@@ -381,7 +382,10 @@ class NDSI_Manager(Base_Manager):
 
     def __init__(self, g_pool):
         super().__init__(g_pool)
-        self.network = ndsi.Network(callbacks=(self.on_event,))
+        self.network = ndsi.Network(
+            formats={ndsi.DataFormat.V3, ndsi.DataFormat.V4},
+            callbacks=(self.on_event,)
+        )
         self.network.start()
         self.selected_host = None
         self._recover_in = 3
@@ -567,10 +571,7 @@ class NDSI_Manager(Base_Manager):
 
     def activate_source(self, settings={}):
         settings["network"] = self.network
-        if hasattr(self.g_pool, "plugins"):
-            self.g_pool.plugins.add(NDSI_Source, args=settings)
-        else:
-            self.g_pool.replace_source(NDSI_Source.__name__, source_settings=settings)
+        self.g_pool.plugins.add(NDSI_Source, args=settings)
 
     def recover(self):
         self.g_pool.capture.recover(self.network)

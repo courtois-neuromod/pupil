@@ -1,3 +1,14 @@
+"""
+(*)~---------------------------------------------------------------------------
+Pupil - eye tracking platform
+Copyright (C) 2012-2019 Pupil Labs
+
+Distributed under the terms of the GNU
+Lesser General Public License (LGPL v3.0).
+See COPYING and COPYING.LESSER for license details.
+---------------------------------------------------------------------------~(*)
+"""
+
 import logging
 from types import SimpleNamespace
 
@@ -11,16 +22,12 @@ class FrameFetcher:
     __slots__ = ("source", "current_frame")
 
     def __init__(self, video_path):
-        try:
-            self.source = File_Source(
-                SimpleNamespace(), source_path=video_path, timing=None
-            )
-        except AssertionError as err:
-            raise FileNotFoundError(video_path) from err
+        self.source = File_Source(
+            SimpleNamespace(), source_path=video_path, timing=None, fill_gaps=True
+        )
+        if not self.source.initialised:
+            raise FileNotFoundError(video_path)
         self.current_frame = self.source.get_frame()
-
-    def initialised(self):
-        return self.source.initialised
 
     def closest_frame_to_ts(self, ts):
         closest_idx = pm.find_closest(self.source.timestamps, ts)

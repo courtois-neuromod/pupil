@@ -1,3 +1,14 @@
+"""
+(*)~---------------------------------------------------------------------------
+Pupil - eye tracking platform
+Copyright (C) 2012-2019 Pupil Labs
+
+Distributed under the terms of the GNU
+Lesser General Public License (LGPL v3.0).
+See COPYING and COPYING.LESSER for license details.
+---------------------------------------------------------------------------~(*)
+"""
+
 import abc
 
 import cv2
@@ -6,26 +17,32 @@ import numpy as np
 
 class ImageManipulator(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def apply_to(self, image, parameter):
+    def apply_to(self, image, parameter, **kwargs):
         raise NotImplementedError
 
 
 class ScaleTransform(ImageManipulator):
-    def apply_to(self, image, parameter):
+    def apply_to(self, image, parameter, **kwargs):
         """parameter: scale factor as float"""
         return cv2.resize(image, (0, 0), fx=parameter, fy=parameter)
 
 
 class HorizontalFlip(ImageManipulator):
-    def apply_to(self, image, parameter):
+    def apply_to(self, image, parameter, *, is_fake_frame, **kwargs):
         """parameter: boolean indicating if image should be flipped"""
-        return np.fliplr(image) if parameter else image
+        if parameter and not is_fake_frame:
+            return np.fliplr(image)
+        else:
+            return image
 
 
 class VerticalFlip(ImageManipulator):
-    def apply_to(self, image, parameter):
+    def apply_to(self, image, parameter, *, is_fake_frame, **kwargs):
         """parameter: boolean indicating if image should be flipped"""
-        return np.flipud(image) if parameter else image
+        if parameter and not is_fake_frame:
+            return np.flipud(image)
+        else:
+            return image
 
 
 class PupilRenderer(ImageManipulator):
@@ -34,9 +51,9 @@ class PupilRenderer(ImageManipulator):
     def __init__(self, pupil_getter):
         self.pupil_getter = pupil_getter
 
-    def apply_to(self, image, parameter):
+    def apply_to(self, image, parameter, *, is_fake_frame, **kwargs):
         """parameter: boolean indicating if pupil should be rendered"""
-        if parameter:
+        if parameter and not is_fake_frame:
             pupil_position = self.pupil_getter()
             if pupil_position:
                 self.render_pupil(image, pupil_position)

@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2018 Pupil Labs
+Copyright (C) 2012-2019 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -11,15 +11,24 @@ See COPYING and COPYING.LESSER for license details.
 
 import abc
 import logging
+import typing
 import uuid
 
 import cv2
 import numpy as np
 
 import methods
-from surface_tracker.surface_marker_aggregate import Surface_Marker_Aggregate
+from stdlib_utils import is_none, is_not_none
+
+from .surface_marker import Surface_Marker_UID
+from .surface_marker_aggregate import Surface_Marker_Aggregate
 
 logger = logging.getLogger(__name__)
+
+
+Surface_Marker_UID_To_Aggregate_Mapping = typing.Mapping[
+    Surface_Marker_UID, Surface_Marker_Aggregate
+]
 
 
 class Surface(abc.ABC):
@@ -27,10 +36,42 @@ class Surface(abc.ABC):
     square markers in the real world. The markers are assumed to be in a fixed spatial
     relationship and to be in plane with one another as well as the surface."""
 
-    def __init__(self, name="unknown", init_dict=None):
+    def __init__(
+        self,
+        name="unknown",
+        real_world_size=None,
+        marker_aggregates_undist=None,
+        marker_aggregates_dist=None,
+        build_up_status: float = None,
+        deprecated_definition: bool = None,
+    ):
+
+        init_args = [
+            real_world_size,
+            marker_aggregates_undist,
+            marker_aggregates_dist,
+            build_up_status,
+            deprecated_definition,
+        ]
+        all_args_none = all(map(is_none, init_args))
+        no_arg_none = all(map(is_not_none, init_args))
+        assert (
+            all_args_none or no_arg_none
+        ), "Either all initialization arguments are None, or they all are not None"
+
+        if marker_aggregates_undist is None:
+            marker_aggregates_undist = []
+        if marker_aggregates_dist is None:
+            marker_aggregates_dist = []
+
+        if real_world_size is None:
+            real_world_size = {"x": 1.0, "y": 1.0}
+        if deprecated_definition is None:
+            deprecated_definition = False
+
         self.name = name
-        self.real_world_size = {"x": 1.0, "y": 1.0}
-        self.deprecated_definition = False
+        self.real_world_size = real_world_size
+        self.deprecated_definition = deprecated_definition
 
         # We store the surface state in two versions: once computed with the
         # undistorted scene image and once with the still distorted scene image. The
@@ -39,8 +80,13 @@ class Surface(abc.ABC):
         # outside of the image can not be re-distorted for visualization correctly.
         # Instead the slightly wrong but correct looking distorted version is
         # used for visualization.
-        self.registered_markers_undist = {}
-        self.registered_markers_dist = {}
+        self._registered_markers_undist: Surface_Marker_UID_To_Aggregate_Mapping = {
+            aggregate.uid: aggregate for aggregate in marker_aggregates_undist
+        }
+        self._registered_markers_dist: Surface_Marker_UID_To_Aggregate_Mapping = {
+            aggregate.uid: aggregate for aggregate in marker_aggregates_dist
+        }
+
         self.detected = False
         self.img_to_surf_trans = None
         self.surf_to_img_trans = None
@@ -48,9 +94,12 @@ class Surface(abc.ABC):
         self.surf_to_dist_img_trans = None
         self.num_detected_markers = 0
 
-        self._REQUIRED_OBS_PER_MARKER = 5
+        # TODO: The aggregation over neighbors for REQUIRED_OBS_PER_MARKER can lead to
+        # inaccurate surface definitions. By setting this to 1 we disable the
+        # aggregation for now. Need to refactor this in the future.
+        self._REQUIRED_OBS_PER_MARKER = 1
         self._avg_obs_per_marker = 0
-        self.build_up_status = 0
+        self.build_up_status = build_up_status if build_up_status is not None else 0
 
         self.within_surface_heatmap = self.get_placeholder_heatmap()
         self.across_surface_heatmap = self.get_placeholder_heatmap()
@@ -62,9 +111,6 @@ class Surface(abc.ABC):
         # The uid is only used to implement __hash__ and __eq__
         self._uid = uuid.uuid4()
 
-        if init_dict is not None:
-            self._load_from_dict(init_dict)
-
     def __hash__(self):
         return int(self._uid)
 
@@ -74,9 +120,33 @@ class Surface(abc.ABC):
         else:
             return False
 
+    @staticmethod
+    def property_equality(x: "Surface", y: "Surface") -> bool:
+        import multiprocessing as mp
+
+        def property_dict(x: Surface) -> dict:
+            x_dict = x.__dict__.copy()
+            del x_dict["_uid"]  # `_uid`s are always unique
+            for key in x_dict.keys():
+                if isinstance(x_dict[key], np.ndarray):
+                    x_dict[key] = x_dict[key].tolist()
+                if isinstance(x_dict[key], mp.sharedctypes.Synchronized):
+                    x_dict[key] = x_dict[key].value
+            return x_dict
+
+        return property_dict(x) == property_dict(y)
+
     @property
     def defined(self):
         return self.build_up_status >= 1.0
+
+    @property
+    def registered_markers_dist(self) -> Surface_Marker_UID_To_Aggregate_Mapping:
+        return self._registered_markers_dist
+
+    @property
+    def registered_markers_undist(self) -> Surface_Marker_UID_To_Aggregate_Mapping:
+        return self._registered_markers_undist
 
     def map_to_surf(
         self, points, camera_model, compensate_distortion=True, trans_matrix=None
@@ -107,7 +177,7 @@ class Surface(abc.ABC):
 
         if compensate_distortion:
             orig_shape = points.shape
-            points = camera_model.undistortPoints(points)
+            points = camera_model.undistort_points_on_image_plane(points)
             points.shape = orig_shape
 
         points_on_surf = self._perspective_transform_points(points, trans_matrix)
@@ -146,7 +216,7 @@ class Surface(abc.ABC):
 
         if compensate_distortion:
             orig_shape = points.shape
-            img_points = camera_model.distortPoints(img_points)
+            img_points = camera_model.distort_points_on_image_plane(img_points)
             img_points.shape = orig_shape
 
         return img_points
@@ -234,14 +304,14 @@ class Surface(abc.ABC):
         )
         registered_verts_undist = np.array(
             [
-                registered_markers_undist[id].verts_uv
-                for id in visible_registered_marker_ids
+                registered_markers_undist[uid].verts_uv
+                for uid in visible_registered_marker_ids
             ]
         )
         registered_verts_dist = np.array(
             [
-                registered_markers_dist[id].verts_uv
-                for id in visible_registered_marker_ids
+                registered_markers_dist[uid].verts_uv
+                for uid in visible_registered_marker_ids
             ]
         )
 
@@ -253,7 +323,9 @@ class Surface(abc.ABC):
             registered_verts_dist, visible_verts_dist
         )
 
-        visible_verts_undist = camera_model.undistortPoints(visible_verts_dist)
+        visible_verts_undist = camera_model.undistort_points_on_image_plane(
+            visible_verts_dist
+        )
         img_to_surf_trans, surf_to_img_trans = Surface._find_homographies(
             registered_verts_undist, visible_verts_undist
         )
@@ -272,9 +344,29 @@ class Surface(abc.ABC):
         points_A = points_A.reshape((-1, 1, 2))
         points_B = points_B.reshape((-1, 1, 2))
 
-        B_to_A, mask = cv2.findHomography(
-            points_A, points_B, method=cv2.RANSAC, ransacReprojThreshold=100
-        )
+        B_to_A, mask = cv2.findHomography(points_A, points_B)
+        # NOTE: cv2.findHomography(A, B) will not produce the inverse of
+        # cv2.findHomography(B, A)! The errors can actually be quite large, resulting in
+        # on-screen discrepancies of up to 50 pixels. We try to find the inverse
+        # analytically instead with fallbacks.
+
+        try:
+            A_to_B = np.linalg.inv(B_to_A)
+            return A_to_B, B_to_A
+        except np.linalg.LinAlgError as e:
+            logger.debug(
+                "Failed to calculate inverse homography with np.inv()! "
+                "Trying with np.pinv() instead."
+            )
+
+        try:
+            A_to_B = np.linalg.pinv(B_to_A)
+            return A_to_B, B_to_A
+        except np.linalg.LinAlgError as e:
+            logger.warning(
+                "Failed to calculate inverse homography with np.pinv()! "
+                "Falling back to inaccurate manual computation!"
+            )
 
         A_to_B, mask = cv2.findHomography(points_B, points_A)
         return A_to_B, B_to_A
@@ -287,7 +379,7 @@ class Surface(abc.ABC):
             [m.verts_px for m in visible_markers.values()], dtype=np.float32
         )
         all_verts_dist.shape = (-1, 2)
-        all_verts_undist = camera_model.undistortPoints(all_verts_dist)
+        all_verts_undist = camera_model.undistort_points_on_image_plane(all_verts_dist)
 
         hull_undist = self._bounding_quadrangle(all_verts_undist)
         undist_img_to_surf_trans_candidate = self._get_trans_to_norm_corners(
@@ -315,20 +407,23 @@ class Surface(abc.ABC):
             visible_markers.values(), marker_surf_coords_undist, marker_surf_coords_dist
         ):
             try:
-                self.registered_markers_undist[marker.id].add_observation(uv_undist)
-                self.registered_markers_dist[marker.id].add_observation(uv_dist)
+                self.registered_markers_undist[marker.uid].add_observation(uv_undist)
+                self.registered_markers_dist[marker.uid].add_observation(uv_dist)
             except KeyError:
-                self.registered_markers_undist[marker.id] = Surface_Marker_Aggregate(
-                    marker.id
+                self.registered_markers_undist[marker.uid] = Surface_Marker_Aggregate(
+                    uid=marker.uid
                 )
-                self.registered_markers_undist[marker.id].add_observation(uv_undist)
-                self.registered_markers_dist[marker.id] = Surface_Marker_Aggregate(
-                    marker.id
+                self.registered_markers_undist[marker.uid].add_observation(uv_undist)
+                self.registered_markers_dist[marker.uid] = Surface_Marker_Aggregate(
+                    uid=marker.uid
                 )
-                self.registered_markers_dist[marker.id].add_observation(uv_dist)
+                self.registered_markers_dist[marker.uid].add_observation(uv_dist)
 
         num_observations = sum(
-            [len(m.observations) for m in self.registered_markers_undist.values()]
+            [
+                len(aggregate.observations)
+                for aggregate in self.registered_markers_undist.values()
+            ]
         )
         self._avg_obs_per_marker = num_observations / len(
             self.registered_markers_undist
@@ -385,13 +480,13 @@ class Surface(abc.ABC):
         persistent_markers_dist = {}
         for (k, m), m_dist in zip(
             self.registered_markers_undist.items(),
-            self.registered_markers_dist.values(),
+            self._registered_markers_dist.values(),
         ):
             if len(m.observations) > self._REQUIRED_OBS_PER_MARKER * 0.5:
                 persistent_markers[k] = m
                 persistent_markers_dist[k] = m_dist
-        self.registered_markers_undist = persistent_markers
-        self.registered_markers_dist = persistent_markers_dist
+        self._registered_markers_undist = persistent_markers
+        self._registered_markers_dist = persistent_markers_dist
 
     def move_corner(self, corner_idx, new_pos, camera_model):
         """Update surface definition by moving one of the corners to a new position.
@@ -404,19 +499,28 @@ class Surface(abc.ABC):
 
         """
         self._move_corner(
-            corner_idx, new_pos, camera_model, self.registered_markers_undist, True
+            corner_idx,
+            new_pos,
+            camera_model,
+            marker_aggregate_mapping=self.registered_markers_undist,
+            compensate_distortion=True,
         )
 
         self._move_corner(
             corner_idx,
             new_pos,
             camera_model,
-            markers=self.registered_markers_dist,
+            marker_aggregate_mapping=self._registered_markers_dist,
             compensate_distortion=False,
         )
 
     def _move_corner(
-        self, corner_idx, new_pos, camera_model, markers, compensate_distortion
+        self,
+        corner_idx: int,
+        new_pos,
+        camera_model,
+        marker_aggregate_mapping: Surface_Marker_UID_To_Aggregate_Mapping,
+        compensate_distortion: bool,
     ):
         # Markers undistorted
         new_corner_pos = self.map_to_surf(
@@ -428,9 +532,9 @@ class Surface(abc.ABC):
         new_corners[corner_idx] = new_corner_pos
 
         transform = cv2.getPerspectiveTransform(new_corners, old_corners)
-        for marker in markers.values():
-            marker.verts_uv = cv2.perspectiveTransform(
-                marker.verts_uv.reshape((-1, 1, 2)), transform
+        for marker_aggregate in marker_aggregate_mapping.values():
+            marker_aggregate.verts_uv = cv2.perspectiveTransform(
+                marker_aggregate.verts_uv.reshape((-1, 1, 2)), transform
             ).reshape((-1, 2))
 
     def add_marker(self, marker_id, verts_px, camera_model):
@@ -438,31 +542,36 @@ class Surface(abc.ABC):
             marker_id,
             verts_px,
             camera_model,
-            markers=self.registered_markers_undist,
+            markers=self._registered_markers_undist,
             compensate_distortion=True,
         )
         self._add_marker(
             marker_id,
             verts_px,
             camera_model,
-            markers=self.registered_markers_dist,
+            markers=self._registered_markers_dist,
             compensate_distortion=False,
         )
 
     def _add_marker(
-        self, marker_id, verts_px, camera_model, markers, compensate_distortion
+        self,
+        marker_uid: Surface_Marker_UID,
+        verts_px,
+        camera_model,
+        markers: Surface_Marker_UID_To_Aggregate_Mapping,
+        compensate_distortion,
     ):
-        surface_marker_dist = Surface_Marker_Aggregate(marker_id)
+        surface_marker_dist = Surface_Marker_Aggregate(uid=marker_uid)
         marker_verts_dist = np.array(verts_px).reshape((4, 2))
         uv_coords_dist = self.map_to_surf(
             marker_verts_dist, camera_model, compensate_distortion=compensate_distortion
         )
         surface_marker_dist.add_observation(uv_coords_dist)
-        markers[marker_id] = surface_marker_dist
+        markers[marker_uid] = surface_marker_dist
 
-    def pop_marker(self, id):
-        self.registered_markers_dist.pop(id)
-        self.registered_markers_undist.pop(id)
+    def pop_marker(self, marker_uid: Surface_Marker_UID):
+        self._registered_markers_dist.pop(marker_uid)
+        self._registered_markers_undist.pop(marker_uid)
 
     def update_heatmap(self, gaze_on_surf):
         """Compute the gaze distribution heatmap based on given gaze events."""
@@ -492,7 +601,7 @@ class Surface(abc.ABC):
             hist *= (255.0 / hist_max) if hist_max else 0.0
             hist = hist.astype(np.uint8)
         else:
-            self.within_surface_heatmap = self.get_uniform_heatmap()
+            self.within_surface_heatmap = self.get_uniform_heatmap(grid)
             return
 
         color_map = cv2.applyColorMap(hist, cv2.COLORMAP_JET)
@@ -502,8 +611,11 @@ class Surface(abc.ABC):
             self.within_surface_heatmap[:, :, 3] = 125
         self.within_surface_heatmap[:, :, :3] = color_map
 
-    def get_uniform_heatmap(self):
-        hm = np.zeros((1, 1, 4), dtype=np.uint8)
+    def get_uniform_heatmap(self, resolution):
+        if len(resolution) != 2:
+            raise ValueError(f"Resolution has to be 2D! Received: ({resolution})!")
+
+        hm = np.zeros((*resolution, 4), dtype=np.uint8)
         hm[:, :, :3] = cv2.applyColorMap(hm[:, :, :3], cv2.COLORMAP_JET)
         hm[:, :, 3] = 125
         return hm
@@ -513,49 +625,6 @@ class Surface(abc.ABC):
         hm[:, :, 3] = 175
 
         return hm
-
-    def save_to_dict(self):
-        return {
-            "name": self.name,
-            "real_world_size": self.real_world_size,
-            "reg_markers": [
-                marker.save_to_dict()
-                for marker in self.registered_markers_undist.values()
-            ],
-            "registered_markers_dist": [
-                marker.save_to_dict()
-                for marker in self.registered_markers_dist.values()
-            ],
-            "build_up_status": self.build_up_status,
-            "deprecated": self.deprecated_definition,
-        }
-
-    def _load_from_dict(self, init_dict):
-        self.name = init_dict["name"]
-        self.real_world_size = init_dict["real_world_size"]
-        self.registered_markers_undist = [
-            Surface_Marker_Aggregate(marker["id"], verts_uv=marker["verts_uv"])
-            for marker in init_dict["reg_markers"]
-        ]
-        self.registered_markers_undist = {
-            m.id: m for m in self.registered_markers_undist
-        }
-        self.registered_markers_dist = [
-            Surface_Marker_Aggregate(marker["id"], verts_uv=marker["verts_uv"])
-            for marker in init_dict["registered_markers_dist"]
-        ]
-        self.registered_markers_dist = {m.id: m for m in self.registered_markers_dist}
-        self.build_up_status = init_dict["build_up_status"]
-
-        try:
-            self.deprecated_definition = init_dict["deprecated"]
-        except KeyError:
-            pass
-        else:
-            logger.warning(
-                "You have loaded an old and deprecated surface definition! "
-                "Please re-define this surface for increased mapping accuracy!"
-            )
 
 
 class Surface_Location:

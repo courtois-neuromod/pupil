@@ -16,20 +16,39 @@ if not running_from_bundle:
     pupil_base_dir = os.path.abspath(__file__).rsplit("pupil_src", 1)[0]
     sys.path.append(os.path.join(pupil_base_dir, "pupil_src", "shared_modules"))
 
-import launchable_args
+from launchable_args import PupilArgParser
 
-default_args = {"app": "capture", "debug": False, "profile": False}
-parsed_args, unknown_args = launchable_args.parse(running_from_bundle, **default_args)
+# NOTE: hyphens (-) in the CLI args are converted to underscores (_) upon parsing, so
+# "--hide-ui" becomes "hide_ui" in python
+default_args = {
+    "debug": False,
+    "profile": False,
+    "version": False,
+    "hide_ui": False,
+    "port": 50020,
+}
+parsed_args, unknown_args = PupilArgParser().parse(running_from_bundle, **default_args)
+
+# app version
+from version_utils import get_version
+
+app_version = get_version()
+if parsed_args.version:
+    running_from = "bundle" if running_from_bundle else "source"
+    version_message = (
+        f"Pupil {parsed_args.app.capitalize()} version {app_version} ({running_from})"
+    )
+
+    print(version_message)
+    sys.exit()
 
 if running_from_bundle:
     # Specifiy user dir.
     folder_name = "pupil_{}_settings".format(parsed_args.app)
     user_dir = os.path.expanduser(os.path.join("~", folder_name))
-    version_file = os.path.join(sys._MEIPASS, "_version_string_")
 else:
     # Specifiy user dir.
     user_dir = os.path.join(pupil_base_dir, "{}_settings".format(parsed_args.app))
-    version_file = None
 
 # create folder for user settings, tmp data
 if not os.path.isdir(user_dir):
@@ -39,11 +58,6 @@ if not os.path.isdir(user_dir):
 plugin_dir = os.path.join(user_dir, "plugins")
 if not os.path.isdir(plugin_dir):
     os.mkdir(plugin_dir)
-
-# app version
-from version_utils import get_version
-
-app_version = get_version(version_file)
 
 # threading and processing
 from multiprocessing import (
@@ -248,7 +262,8 @@ def launcher():
 
     import logging
 
-    logging.debug("Unknown command-line arguments: {}".format(unknown_args))
+    if unknown_args:
+        logging.warning(f"Unknown command-line arguments: {unknown_args}")
 
     if parsed_args.app == "service":
         cmd_push.notify({"subject": "service_process.should_start"})
@@ -280,6 +295,7 @@ def launcher():
                             app_version,
                             eye_id,
                             n.get("overwrite_cap_settings"),
+                            parsed_args.hide_ui,
                         ),
                     ).start()
                 elif "notify.player_process.should_start" in topic:
@@ -308,6 +324,7 @@ def launcher():
                             user_dir,
                             app_version,
                             parsed_args.port,
+                            parsed_args.hide_ui,
                         ),
                     ).start()
                 elif "notify.clear_settings_process.should_start" in topic:
@@ -327,6 +344,7 @@ def launcher():
                             user_dir,
                             app_version,
                             parsed_args.port,
+                            parsed_args.hide_ui,
                         ),
                     ).start()
                 elif "notify.player_drop_process.should_start" in topic:

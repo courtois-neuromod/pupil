@@ -136,9 +136,11 @@ class Pupil_Producer_Base(Observable, Producer_Plugin_Base):
                         pupil_positions.timestamps[0],
                         pupil_positions.timestamps[-1],
                     )
-                    timestamps_target = np.linspace(t0, t1, NUMBER_SAMPLES_TIMELINE)
+                    timestamps_target = np.linspace(
+                        t0, t1, NUMBER_SAMPLES_TIMELINE, dtype=np.float32
+                    )
 
-                    data_indeces = np.searchsorted(
+                    data_indeces = pm.find_closest(
                         pupil_positions.timestamps, timestamps_target
                     )
                     data_indeces = np.unique(data_indeces)
@@ -326,15 +328,13 @@ class Offline_Pupil_Detection(Pupil_Producer_Base):
         set_name = os.path.splitext(file_)[0]
         self.videoset = VideoSet(rec, set_name, fill_gaps=False)
         self.videoset.load_or_build_lookup()
-        timestamp_len = (self.videoset.lookup.container_idx > -1).sum()
-        if not timestamp_len:
-            logger.error(
-                "no timestamps for eye video for eye '{}' found.".format(eye_id)
-            )
+        if self.videoset.is_empty():
+            logger.error(f"No videos for eye '{eye_id}' found.")
             self.detection_status[eye_id] = "No eye video found."
             return
         video_loc = existing_locs[0]
-        self.eye_frame_num[eye_id] = timestamp_len
+        n_valid_frames = np.count_nonzero(self.videoset.lookup.container_idx > -1)
+        self.eye_frame_num[eye_id] = n_valid_frames
 
         capure_settings = "File_Source", {"source_path": video_loc, "timing": None}
         self.notify_all(

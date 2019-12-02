@@ -1,40 +1,21 @@
-import square_marker_detect
+"""
+(*)~---------------------------------------------------------------------------
+Pupil - eye tracking platform
+Copyright (C) 2012-2019 Pupil Labs
+
+Distributed under the terms of the GNU
+Lesser General Public License (LGPL v3.0).
+See COPYING and COPYING.LESSER for license details.
+---------------------------------------------------------------------------~(*)
+"""
+
 from .surface import Surface
-from .surface_tracker import Square_Marker_Detection
+from .surface_marker_detector import MarkerDetectorController
 
 
-class marker_detection_callable:
-    def __init__(self, min_marker_perimeter, inverted_markers):
-        self.min_marker_perimeter = min_marker_perimeter
-        self.inverted_markers = inverted_markers
-        self.prev_markers = []
-        self.prev_frame_idx = -1
-
+class marker_detection_callable(MarkerDetectorController):
     def __call__(self, frame):
-        if frame.index != self.prev_frame_idx + 1:
-            self.prev_markers = []
-
-        markers = square_marker_detect.detect_markers_robust(
-            frame.gray,
-            grid_size=5,
-            prev_markers=self.prev_markers,
-            min_marker_perimeter=self.min_marker_perimeter,
-            aperture=9,
-            visualize=0,
-            true_detect_every_frame=1,
-            invert_image=self.inverted_markers,
-        )
-
-        self.prev_markers = markers
-        self.prev_frame_idx = frame.index
-
-        markers = [
-            Square_Marker_Detection(
-                m["id"], m["id_confidence"], m["verts"], m["perimeter"]
-            )
-            for m in markers
-        ]
-        return markers
+        return self.detect_markers(gray_img=frame.gray, frame_index=frame.index)
 
 
 class surface_locater_callable:
@@ -46,7 +27,7 @@ class surface_locater_callable:
         self.registered_markers_dist = registered_markers_dist
 
     def __call__(self, markers):
-        markers = {m.id: m for m in markers}
+        markers = {m.uid: m for m in markers}
         return Surface.locate(
             markers,
             self.camera_model,

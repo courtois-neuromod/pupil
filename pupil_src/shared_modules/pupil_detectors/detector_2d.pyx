@@ -1,3 +1,4 @@
+# cython: profile=False, language_level=3
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
@@ -9,7 +10,6 @@ See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
 
-# cython: profile=False
 import math
 import sys
 
@@ -288,7 +288,7 @@ cdef class Detector_2D:
             self.gl_display_in_window(self.debugImage)
 
     def set_2d_detector_property(self, name, value):
-        set_detector_property(self.detectProperties2D, name, value)
+        set_detector_property(self.detectProperties, name, value)
 
     def get_detector_properties(self):
-        return {"2d": self.detectProperties2D}
+        return {"2d": self.detectProperties}

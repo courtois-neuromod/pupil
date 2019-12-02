@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2018 Pupil Labs
+Copyright (C) 2012-2019 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -17,9 +17,9 @@ import pyglui
 import pyglui.cygl.utils as pyglui_utils
 import gl_utils
 
-from surface_tracker.gui import Heatmap_Mode
-from surface_tracker.surface_tracker import Surface_Tracker
-from surface_tracker.surface_online import Surface_Online
+from .gui import Heatmap_Mode
+from .surface_tracker import Surface_Tracker
+from .surface_online import Surface_Online
 
 
 class Surface_Tracker_Online(Surface_Tracker):
@@ -28,15 +28,11 @@ class Surface_Tracker_Online(Surface_Tracker):
     necessary computation is done per frame.
     """
 
-    def __init__(self, g_pool, marker_min_perimeter=60, inverted_markers=False):
+    def __init__(self, g_pool, *args, **kwargs):
         self.freeze_scene = False
         self.frozen_scene_frame = None
         self.frozen_scene_tex = None
-        super().__init__(
-            g_pool,
-            marker_min_perimeter=marker_min_perimeter,
-            inverted_markers=inverted_markers,
-        )
+        super().__init__(g_pool, *args, use_online_detection=True, **kwargs)
 
         self.menu = None
         self.button = None
@@ -91,7 +87,7 @@ class Surface_Tracker_Online(Surface_Tracker):
 
         surf_menu.append(
             pyglui.ui.Text_Input(
-                "GAZE_HISTORY_LENGTH",
+                "gaze_history_length",
                 surface,
                 label="Gaze History Length [seconds]",
                 setter=set_gaze_hist_len,
@@ -154,7 +150,24 @@ class Surface_Tracker_Online(Surface_Tracker):
         if self.freeze_scene:
             logger.warning("Surfaces cannot be added while the scene is frozen!")
         else:
-            super().on_add_surface_click()
+            # NOTE: This is slightly different than the super() implementation.
+            # We need to save the surface definition after adding it, but the Surface
+            # Store does not store undefined surfaces. Therefore, we need to call
+            # surface.update_location() once. This will define the surface and allow us
+            # to save it.
+            if self.markers and self.current_frame is not None:
+                surface = self.Surface_Class(
+                    name="Surface {:}".format(len(self.surfaces) + 1)
+                )
+                self.add_surface(surface)
+                surface.update_location(
+                    self.current_frame.index, self.markers, self.camera_model
+                )
+                self.save_surface_definitions_to_file()
+            else:
+                logger.warning(
+                    "Can not add a new surface: No markers found in the image!"
+                )
 
     def gl_display(self):
         if self.freeze_scene:

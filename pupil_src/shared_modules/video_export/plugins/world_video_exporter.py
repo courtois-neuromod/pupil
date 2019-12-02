@@ -15,6 +15,7 @@ import os
 import player_methods as pm
 from task_manager import ManagedTask
 from video_export.plugin_base.video_exporter import VideoExporter
+from pupil_recording import PupilRecording
 
 logger = logging.getLogger(__name__)
 
@@ -109,12 +110,11 @@ def _export_world_video(
 
     import file_methods as fm
     import player_methods as pm
-    from av_writer import AV_Writer
+    from av_writer import MPEG_Audio_Writer
 
     # we are not importing manual gaze correction. In Player corrections have already been applied.
     # in batch exporter this plugin makes little sense.
     from fixation_detector import Offline_Fixation_Detector
-    from eye_movement import Offline_Eye_Movement_Detector
 
     # Plug-ins
     from plugin import Plugin_List, import_runtime_plugins
@@ -147,7 +147,7 @@ def _export_world_video(
             ],
             key=lambda x: x.__name__,
         )
-        analysis_plugins = [Offline_Fixation_Detector, Offline_Eye_Movement_Detector]
+        analysis_plugins = [Offline_Fixation_Detector]
         user_plugins = sorted(
             import_runtime_plugins(os.path.join(user_dir, "plugins")),
             key=lambda x: x.__name__,
@@ -157,22 +157,24 @@ def _export_world_video(
         name_by_index = [p.__name__ for p in available_plugins]
         plugin_by_name = dict(zip(name_by_index, available_plugins))
 
-        meta_info = pm.load_meta_info(rec_dir)
+        recording = PupilRecording(rec_dir)
+        meta_info = recording.meta_info
 
         g_pool = GlobalContainer()
         g_pool.app = "exporter"
         g_pool.min_data_confidence = min_data_confidence
 
-        valid_ext = (".mp4", ".mkv", ".avi", ".h264", ".mjpeg", ".fake")
-        try:
-            video_path = next(
-                f
-                for f in glob(os.path.join(rec_dir, "world.*"))
-                if os.path.splitext(f)[1] in valid_ext
-            )
-        except StopIteration:
-            raise FileNotFoundError("No Video world found")
-        cap = File_Source(g_pool, source_path=video_path, fill_gaps=True, timing=None)
+        videos = recording.files().core().world().videos()
+        if not videos:
+            raise FileNotFoundError("No world video found")
+
+        source_path = videos[0].resolve()
+        cap = File_Source(g_pool, source_path=source_path, fill_gaps=True, timing=None)
+        if not cap.initialised:
+            warn = "Trying to export zero-duration world video."
+            logger.warning(warn)
+            yield warn, 0.0
+            return
 
         timestamps = cap.timestamps
 
@@ -211,8 +213,8 @@ def _export_world_video(
         )
 
         # setup of writer
-        writer = AV_Writer(
-            out_file_path, fps=cap.frame_rate, audio_dir=rec_dir, use_timestamps=True
+        writer = MPEG_Audio_Writer(
+            out_file_path, start_time_synced=trimmed_timestamps[0], audio_dir=rec_dir
         )
 
         cap.seek_to_frame(start_frame)

@@ -10,6 +10,7 @@ See COPYING and COPYING.LESSER for license details.
 """
 import os
 import platform
+import signal
 from types import SimpleNamespace
 
 
@@ -22,6 +23,7 @@ def world(
     user_dir,
     version,
     preferred_remote_port,
+    hide_ui,
 ):
     """Reads world video and runs plugins.
 
@@ -152,7 +154,6 @@ def world(
             Gaze_Mapping_Plugin,
         )
         from fixation_detector import Fixation_Detector
-        from eye_movement import Eye_Movement_Detector_Real_Time
         from recorder import Recorder
         from display_recent_gaze import Display_Recent_Gaze
         from time_sync import Time_Sync
@@ -179,6 +180,7 @@ def world(
         from system_graphs import System_Graphs
         from camera_intrinsics_estimation import Camera_Intrinsics_Estimation
         from hololens_relay import Hololens_Relay
+        from head_pose_tracker.online_head_pose_tracker import Online_Head_Pose_Tracker
 
         # UI Platform tweaks
         if platform.system() == "Linux":
@@ -190,6 +192,18 @@ def world(
         else:
             scroll_factor = 1.0
             window_position_default = (0, 0)
+
+        process_was_interrupted = False
+
+        def interrupt_handler(sig, frame):
+            import traceback
+
+            trace = traceback.format_stack(f=frame)
+            logger.debug(f"Caught signal {sig} in:\n" + "".join(trace))
+            nonlocal process_was_interrupted
+            process_was_interrupted = True
+
+        signal.signal(signal.SIGINT, interrupt_handler)
 
         icon_bar_width = 50
         window_size = None
@@ -231,21 +245,13 @@ def world(
             Annotation_Capture,
             Log_History,
             Fixation_Detector,
-            Eye_Movement_Detector_Real_Time,
             Blink_Detection,
             Remote_Recorder,
             Accuracy_Visualizer,
             Camera_Intrinsics_Estimation,
             Hololens_Relay,
+            Online_Head_Pose_Tracker,
         ]
-
-        if platform.system() != "Windows":
-            # Head pose tracking is currently not available on Windows
-            from head_pose_tracker.online_head_pose_tracker import (
-                Online_Head_Pose_Tracker,
-            )
-
-            user_plugins.append(Online_Head_Pose_Tracker)
 
         system_plugins = (
             [
@@ -354,9 +360,9 @@ def world(
 
         def on_drop(window, count, paths):
             paths = [paths[x].decode("utf-8") for x in range(count)]
-            # call `on_drop` callbacks until a plugin indicates
-            # that it has consumed the event (by returning True)
-            any(p.on_drop(paths) for p in g_pool.plugins)
+            for plugin in g_pool.plugins:
+                if plugin.on_drop(paths):
+                    break
 
         tick = delta_t()
 
@@ -399,9 +405,12 @@ def world(
                         g_pool.plugins.add(g_pool.plugin_by_name["Dummy_Gaze_Mapper"])
                 g_pool.detection_mapping_mode = noti["mode"]
             elif subject == "start_plugin":
-                g_pool.plugins.add(
-                    g_pool.plugin_by_name[noti["name"]], args=noti.get("args", {})
-                )
+                try:
+                    g_pool.plugins.add(
+                        g_pool.plugin_by_name[noti["name"]], args=noti.get("args", {})
+                    )
+                except KeyError as err:
+                    logger.error(f"Attempt to load unknown plugin: {err}")
             elif subject == "stop_plugin":
                 for p in g_pool.plugins:
                     if p.class_name == noti["name"]:
@@ -440,6 +449,8 @@ def world(
 
         # window and gl setup
         glfw.glfwInit()
+        if hide_ui:
+            glfw.glfwWindowHint(glfw.GLFW_VISIBLE, 0)  # hide window
         main_window = glfw.glfwCreateWindow(width, height, "Pupil Capture - World")
         window_pos = session_settings.get("window_position", window_position_default)
         glfw.glfwSetWindowPos(main_window, window_pos[0], window_pos[1])
@@ -598,7 +609,9 @@ def world(
         logger.warning("Process started.")
 
         # Event loop
-        while not glfw.glfwWindowShouldClose(main_window):
+        while (
+            not glfw.glfwWindowShouldClose(main_window) and not process_was_interrupted
+        ):
 
             # fetch newest notifications
             new_notifications = []
@@ -672,27 +685,25 @@ def world(
                     # Position in img pixels
                     pos = denormalize(pos, g_pool.capture.frame_size)
 
-                    # call `on_click` callbacks until a plugin indicates
-                    # that it has consumed the event (by returning True)
-                    any(p.on_click(pos, button, action) for p in g_pool.plugins)
+                    for plugin in g_pool.plugins:
+                        if plugin.on_click(pos, button, action):
+                            break
 
                 for key, scancode, action, mods in user_input.keys:
-                    # call `on_key` callbacks until a plugin indicates
-                    # that it has consumed the event (by returning True)
-                    any(p.on_key(key, scancode, action, mods) for p in g_pool.plugins)
+                    for plugin in g_pool.plugins:
+                        if plugin.on_key(key, scancode, action, mods):
+                            break
 
                 for char_ in user_input.chars:
-                    # call `char_` callbacks until a plugin indicates
-                    # that it has consumed the event (by returning True)
-                    any(p.on_char(char_) for p in g_pool.plugins)
+                    for plugin in g_pool.plugins:
+                        if plugin.on_char(char_):
+                            break
 
                 glfw.glfwSwapBuffers(main_window)
 
-        glfw.glfwRestoreWindow(main_window)  # need to do this for windows os
         session_settings["loaded_plugins"] = g_pool.plugins.get_initializers()
         session_settings["gui_scale"] = g_pool.gui_user_scale
         session_settings["ui_config"] = g_pool.gui.configuration
-        session_settings["window_position"] = glfw.glfwGetWindowPos(main_window)
         session_settings["version"] = str(g_pool.version)
         session_settings["eye0_process_alive"] = eye_procs_alive[0].value
         session_settings["eye1_process_alive"] = eye_procs_alive[1].value
@@ -702,9 +713,12 @@ def world(
         session_settings["detection_mapping_mode"] = g_pool.detection_mapping_mode
         session_settings["audio_mode"] = audio.audio_mode
 
-        session_window_size = glfw.glfwGetWindowSize(main_window)
-        if 0 not in session_window_size:
-            session_settings["window_size"] = session_window_size
+        if not hide_ui:
+            glfw.glfwRestoreWindow(main_window)  # need to do this for windows os
+            session_settings["window_position"] = glfw.glfwGetWindowPos(main_window)
+            session_window_size = glfw.glfwGetWindowSize(main_window)
+            if 0 not in session_window_size:
+                session_settings["window_size"] = session_window_size
 
         session_settings.close()
 
@@ -717,7 +731,7 @@ def world(
         glfw.glfwDestroyWindow(main_window)
         glfw.glfwTerminate()
 
-    except:
+    except Exception:
         import traceback
 
         trace = traceback.format_exc()
@@ -749,7 +763,7 @@ def world_profiled(
     from .world import world
 
     cProfile.runctx(
-        "world(timebase, eye_procs_alive, ipc_pub_url,ipc_sub_url,ipc_push_url,user_dir,version)",
+        "world(timebase, eye_procs_alive, ipc_pub_url,ipc_sub_url,ipc_push_url,user_dir,version,preferred_remote_port)",
         {
             "timebase": timebase,
             "eye_procs_alive": eye_procs_alive,

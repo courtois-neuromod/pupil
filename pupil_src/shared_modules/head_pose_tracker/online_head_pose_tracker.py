@@ -10,20 +10,15 @@ See COPYING and COPYING.LESSER for license details.
 """
 
 from head_pose_tracker import ui as plugin_ui, controller, storage
-
-from observable import Observable
-from plugin import Plugin
 from tasklib.manager import PluginTaskManager
+from .base_head_pose_tracker import Head_Pose_Tracker_Base
 
 
-class Online_Head_Pose_Tracker(Plugin, Observable):
+class Online_Head_Pose_Tracker(Head_Pose_Tracker_Base):
     """
     This plugin tracks the pose of the scene camera based on fiducial markers in the
     environment.
     """
-
-    icon_chr = chr(0xEC07)
-    icon_font = "pupil_icons"
 
     def __init__(
         self,
@@ -35,7 +30,7 @@ class Online_Head_Pose_Tracker(Plugin, Observable):
         render_markers=True,
         show_marker_id_in_main_window=False,
         window_size=(1000, 1000),
-        window_position=(0, 0),
+        window_position=(90, 90),
     ):
         super().__init__(g_pool)
 

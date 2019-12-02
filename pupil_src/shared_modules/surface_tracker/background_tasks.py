@@ -1,3 +1,14 @@
+"""
+(*)~---------------------------------------------------------------------------
+Pupil - eye tracking platform
+Copyright (C) 2012-2019 Pupil Labs
+
+Distributed under the terms of the GNU
+Lesser General Public License (LGPL v3.0).
+See COPYING and COPYING.LESSER for license details.
+---------------------------------------------------------------------------~(*)
+"""
+
 import csv
 import itertools
 import logging
@@ -32,7 +43,10 @@ def video_processing_generator(video_file_path, callable, seek_idx, visited_list
     import video_capture
 
     cap = video_capture.File_Source(
-        types.SimpleNamespace(), source_path=video_file_path, timing=None
+        types.SimpleNamespace(),
+        source_path=video_file_path,
+        fill_gaps=True,
+        timing=None,
     )
 
     # Ensure that indiced are not generated beyond video frame count
@@ -429,10 +443,25 @@ class Exporter:
     def _export_surface_heatmap(self, surface, surface_name):
         if surface.within_surface_heatmap is not None:
             logger.info("Saved Heatmap as .png file.")
-            cv2.imwrite(
-                os.path.join(self.metrics_dir, "heatmap" + surface_name + ".png"),
-                surface.within_surface_heatmap,
+            heatmap_file_name = "heatmap" + surface_name + ".png"
+            heatmap_path = os.path.join(self.metrics_dir, heatmap_file_name)
+
+            surface_size = surface.real_world_size
+            export_resolution = (surface_size["x"], surface_size["y"])
+
+            MIN_EXPORT_DIMENSION = 2000  # min width and height in px
+            scaling = MIN_EXPORT_DIMENSION / min(export_resolution)
+            # NOTE: cv2.resize expects a tuple of ints specifically
+            export_resolution = tuple(
+                int(round(val * scaling)) for val in export_resolution
             )
+
+            # throw away alpha channel for export
+            heatmap_img = surface.within_surface_heatmap[:, :, :3]
+            heatmap_img = cv2.resize(
+                heatmap_img, export_resolution, interpolation=cv2.INTER_NEAREST
+            )
+            cv2.imwrite(heatmap_path, heatmap_img)
 
     def _export_surface_positions(self, surface, surface_name):
         with open(
@@ -449,6 +478,8 @@ class Exporter:
                     "img_to_surf_trans",
                     "surf_to_img_trans",
                     "num_detected_markers",
+                    "dist_img_to_surf_trans",
+                    "surf_to_dist_img_trans",
                 )
             )
             for idx, (ts, ref_surf_data) in enumerate(
@@ -467,6 +498,8 @@ class Exporter:
                                 ref_surf_data.img_to_surf_trans,
                                 ref_surf_data.surf_to_img_trans,
                                 ref_surf_data.num_detected_markers,
+                                ref_surf_data.dist_img_to_surf_trans,
+                                ref_surf_data.surf_to_dist_img_trans,
                             )
                         )
 
@@ -526,6 +559,8 @@ class Exporter:
             csv_writer = csv.writer(csv_file, delimiter=",")
             csv_writer.writerow(
                 (
+                    "world_timestamp",
+                    "world_index",
                     "fixation_id",
                     "start_timestamp",
                     "duration",
@@ -537,21 +572,22 @@ class Exporter:
                     "on_surf",
                 )
             )
-            # flatten `fixations_on_surf[world_frame_idx][frame_event_idx]`
-            # to `fixations_on_surf[global_event_idx]`
-            fixations_on_surf = itertools.chain.from_iterable(fixations_on_surf)
-            without_duplicates = {fix["id"]: fix for fix in fixations_on_surf}.values()
-            for fix in without_duplicates:
-                csv_writer.writerow(
-                    (
-                        fix["id"],
-                        fix["timestamp"],
-                        fix["duration"],
-                        fix["dispersion"],
-                        fix["norm_pos"][0],
-                        fix["norm_pos"][1],
-                        fix["norm_pos"][0] * surface.real_world_size["x"],
-                        fix["norm_pos"][1] * surface.real_world_size["y"],
-                        fix["on_surf"],
-                    )
-                )
+            for world_idx, fixs_for_frame in enumerate(fixations_on_surf):
+                world_idx += self.export_range[0]
+                if fixs_for_frame:
+                    for fix in fixs_for_frame:
+                        csv_writer.writerow(
+                            (
+                                self.world_timestamps[world_idx],
+                                world_idx,
+                                fix["id"],
+                                fix["timestamp"],
+                                fix["duration"],
+                                fix["dispersion"],
+                                fix["norm_pos"][0],
+                                fix["norm_pos"][1],
+                                fix["norm_pos"][0] * surface.real_world_size["x"],
+                                fix["norm_pos"][1] * surface.real_world_size["y"],
+                                fix["on_surf"],
+                            )
+                        )
