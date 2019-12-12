@@ -24,6 +24,8 @@ from gi.repository import Aravis
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+class AravisException(Exception):
+    pass
 
 class Frame(object):
     """docstring of Frame"""
@@ -59,7 +61,7 @@ class Frame(object):
 
 class Aravis_Source(Base_Source):
     """
-    Camera Capture is a class that encapsulates python-aravis
+    Aravis_Source is a class that encapsulates python-aravis
     """
 
     def __init__(
@@ -161,6 +163,7 @@ class Aravis_Source(Base_Source):
         logger.info('started capture successfully')
 
     def _stop_capture(self):
+        logger.info('stopping capture')
         self.cam.stop_acquisition()
         if self.stream:
             self.stream.set_emit_signals(False)
@@ -179,7 +182,7 @@ class Aravis_Source(Base_Source):
 
     def get_frame(self):
         buf = self.stream.try_pop_buffer()
-        print(self.stream.get_n_buffers())
+        #print(self.stream.get_n_buffers())
         if buf and buf.get_status() == Aravis.BufferStatus.SUCCESS:
             data = self._array_from_buffer_address(buf)
             self.stream.push_buffer(buf)
@@ -223,7 +226,9 @@ class Aravis_Source(Base_Source):
             return
         frame = self.get_frame()
         if frame is None:
+            logger.debug('no frame')
             return
+        logger.debug('frame')
         self._recent_frame = frame
         events["frame"] = frame
 
@@ -245,17 +250,11 @@ class Aravis_Source(Base_Source):
 
     @property
     def height(self):
-        if self.cam:
-            return self.get_feature('Height')
-        else:
-            return self.frame_size_backup[1]
+        return self.frame_size_backup[1]
 
     @property
     def width(self):
-        if self.cam:
-            return self.get_feature('Width')
-        else:
-            return self.frame_size_backup[0]
+        return self.frame_size_backup[0]
 
     @property
     def frame_size(self):
@@ -267,8 +266,8 @@ class Aravis_Source(Base_Source):
             return
         height = self.set_feature('Height', new_size[1])
         width = self.set_feature('Width', new_size[0])
+        # we set the real size that the system accepted
         size = (width, height)
-
         """
         r_x,r_y,r_w,r_h,r_s= self.g_pool.u_r.get()
         if r_x+r_w > width:
@@ -304,7 +303,8 @@ class Aravis_Source(Base_Source):
         genicam = self.dev.get_genicam()
         node = genicam.get_node(name)
         if not node:
-            raise AravisException("Feature {} does not seem to exist in camera".format(name))
+            logger.error("Feature {} does not seem to exist in camera".format(name))
+            return
         return node.get_node_name()
 
     def set_feature(self, name, val):
@@ -322,7 +322,7 @@ class Aravis_Source(Base_Source):
         elif ntype == "Boolean":
             return self.dev.set_integer_feature_value(name, int(val))
         else:
-            self.logger.warning("Feature type not implemented: %s", ntype)
+            logger.warning("Feature type not implemented: %s", ntype)
 
         """
         # the set_feature function in python-aravis doesn't work
@@ -335,6 +335,7 @@ class Aravis_Source(Base_Source):
         """
 
     def get_feature(self, name):
+
         ntype = self.get_feature_type(name)
         if ntype in ("Enumeration", "String", "StringReg"):
             return self.dev.get_string_feature_value(name)
@@ -348,7 +349,7 @@ class Aravis_Source(Base_Source):
         elif ntype == "Boolean":
             return self.dev.get_integer_feature_value(name)
         else:
-            self.logger.warning("Feature type not implemented: %s", ntype)
+            logger.warning("Feature type not implemented: %s", ntype)
 
         """
         feat = self.dev.get_feature(name)
@@ -441,29 +442,19 @@ class Aravis_Source(Base_Source):
             )
         )
         """
-        sensor_control.append(
-            ui.Slider(
-                "width",
-                self,
-                min=20,
-                max=self.get_feature('WidthMax'),
-                step = 1,
-                label="Width",
-            )
-        )
 
-
-
-        sensor_control.append(
-            ui.Slider(
-                "height",
-                self,
-                min=20,
-                max=self.get_feature('HeightMax'),
-                step = 1,
-                label="Height",
-            )
-        )
+        for slider_name in ['Width','Height']:
+            if self.get_feature_type(slider_name):
+                sensor_control.append(
+                ui.Slider(
+                    slider_name.lower(),
+                    self,
+                    min=20,
+                    max=self.get_feature(slider_name+'Max'),
+                    step = 1,
+                    label=slider_name,
+                    )
+                )
 
         sensor_control.append(
             ui.Slider(
@@ -517,8 +508,11 @@ class Aravis_Source(Base_Source):
 
     def cleanup(self):
         if self.cam:
+
             self.cam.stop_acquisition()
-            self.cam = None
+            del self.stream
+            del self.cam
+            del self.dev
         super().cleanup()
 
 
@@ -578,6 +572,7 @@ class Aravis_Manager(Base_Manager):
             logger.error(str(ve))
             return
 
+        logger.info('activating %s' % source_uid)
         settings = {
             "frame_size": self.g_pool.capture.frame_size,
             "frame_rate": self.g_pool.capture.frame_rate,
@@ -592,7 +587,7 @@ class Aravis_Manager(Base_Manager):
         else:
             self.notify_all(
                 {
-                    "subject": "start_eye_capture",
+                    "subject": "start_eye_plugin",
                     "target": self.g_pool.process,
                     "name": "Aravis_Source",
                     "args": settings,
