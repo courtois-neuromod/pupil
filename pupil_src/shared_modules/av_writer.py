@@ -123,8 +123,7 @@ class AV_Writer(abc.ABC):
 
         self.configured = False
         self.video_stream = self.container.add_stream(
-            codec_name=self.codec, rate=1 / self.time_base,
-            options=video_stream["options"]
+            codec_name=self.codec, rate=1 / self.time_base
         )
 
         # TODO: Where does this bit-rate come from? Seems like an unreasonable
@@ -133,9 +132,6 @@ class AV_Writer(abc.ABC):
         self.video_stream.bit_rate = BIT_RATE
         self.video_stream.bit_rate_tolerance = BIT_RATE / 20
         self.video_stream.thread_count = max(1, mp.cpu_count() - 1)
-        if 'pix_fmt' in video_stream:
-            self.video_stream.pix_fmt = video_stream['pix_fmt']
-        # self.video_stream.pix_fmt = "yuv420p"
 
         self.closed = False
 
@@ -262,8 +258,10 @@ class MPEG_Writer(AV_Writer):
         # setup av frame once to use as buffer throughout the process
         if input_frame.yuv_buffer is not None:
             pix_format = "yuv422p"
-        else:
-            pix_format = "bgr24"
+        elif input_frame.img is not None:
+            pix_format = 'bgr24'
+        elif input_frame.gray is not None:
+            pix_format = "gray"
         self.frame = av.VideoFrame(input_frame.width, input_frame.height, pix_format)
         self.frame.time_base = self.time_base
 
@@ -273,15 +271,54 @@ class MPEG_Writer(AV_Writer):
             self.frame.planes[0].update(y)
             self.frame.planes[1].update(u)
             self.frame.planes[2].update(v)
+        elif input_frame.img is not None:
+            self.frame.planes[0].update(input_frame.img)
         elif input_frame.gray is not None:
             self.frame.planes[0].update(input_frame.gray)
-        else:
-            self.frame.planes[0].update(input_frame.img)
-
         self.frame.pts = pts
 
         yield from self.video_stream.encode(self.frame)
 
+
+class X265_Writer(AV_Writer):
+    """AV_Writer with libx265 encoding."""
+
+    def __init__(self. *args, **kwargs):
+        self.video_stream.preset = 'ultrafast'
+
+    @property
+    def supported_extensions(self):
+        return (".mp4", ".mov", ".mkv")
+
+    @property
+    def codec(self):
+        return "libx265"
+
+    def on_first_frame(self, input_frame) -> None:
+        # setup av frame once to use as buffer throughout the process
+        if input_frame.yuv_buffer is not None:
+            pix_format = "yuv422p"
+        elif input_frame.bgr is not None:
+            pix_format = 'bgr24'
+        elif input_frame.gray is not None:
+            pix_format = "gray"
+        self.frame = av.VideoFrame(input_frame.width, input_frame.height, pix_format)
+        self.frame.time_base = self.time_base
+
+    def encode_frame(self, input_frame, pts: int) -> T.Iterator[Packet]:
+        if input_frame.yuv_buffer is not None:
+            y, u, v = input_frame.yuv422
+            self.frame.planes[0].update(y)
+            self.frame.planes[1].update(u)
+            self.frame.planes[2].update(v)
+        elif input_frame.bgr is not None:
+            self.frame.planes[0].update(input_frame.img)
+        elif input_frame.gray is not None:
+            self.frame.planes[0].update(input_frame.gray)
+
+        self.frame.pts = pts
+
+        yield from self.video_stream.encode(self.frame)
 
 class JPEG_Writer(AV_Writer):
     """AV_Writer with MJPEG encoding."""

@@ -253,7 +253,6 @@ class Recorder(System_Plugin_Base):
                 logger.info("Recording already running!")
             else:
                 self.record_eye = notification.get("record_eye", self.record_eye)
-                self.writer_options = notification.get("writer_options", dict())
                 if notification.get("session_name", ""):
                     self.set_session_name(notification["session_name"])
                 self.start()
@@ -346,10 +345,7 @@ class Recorder(System_Plugin_Base):
                 int(self.g_pool.capture.frame_rate),
             )
         else:
-            self.writer = AV_Writer(
-                self.video_path,
-                fps=self.g_pool.capture.frame_rate,
-                **self.writer_options)
+            self.writer = MPEG_Writer(self.video_path, start_time_synced)
 
         try:
             cal_pt_path = os.path.join(self.g_pool.user_dir, "user_calibration_data")

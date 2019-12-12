@@ -142,7 +142,7 @@ def eye(
         from file_methods import Persistent_Dict
         from version_utils import VersionFormat
         from methods import normalize, denormalize, timer
-        from av_writer import JPEG_Writer, MPEG_Writer
+        from av_writer import JPEG_Writer, MPEG_Writer, X265_Writer
         from ndsi import H264Writer
         from video_capture import source_classes, manager_classes
 
@@ -552,7 +552,7 @@ def eye(
                                 g_pool.capture.frame_rate,
                             )
                         else:
-                            g_pool.writer = MPEG_Writer(video_path, start_time_synced)
+                            g_pool.writer = X265_Writer(video_path, start_time_synced)
                 elif subject == "recording.stopped":
                     if g_pool.writer:
                         logger.info("Done recording.")
