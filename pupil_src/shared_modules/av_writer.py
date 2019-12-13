@@ -283,8 +283,17 @@ class MPEG_Writer(AV_Writer):
 class X265_Writer(AV_Writer):
     """AV_Writer with libx265 encoding."""
 
-    def __init__(self. *args, **kwargs):
-        self.video_stream.preset = 'ultrafast'
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        BIT_RATE = 1500000 * 1e3
+        self.video_stream.bit_rate = BIT_RATE
+        self.video_stream.bit_rate_tolerance = BIT_RATE / 20
+
+        self.video_stream.options = dict(
+            preset='faster',
+            crf='18',
+            #tune='zerolatency',
+            )
 
     @property
     def supported_extensions(self):
@@ -302,6 +311,7 @@ class X265_Writer(AV_Writer):
             pix_format = 'bgr24'
         elif input_frame.gray is not None:
             pix_format = "gray"
+        logger.info('pix_format: %s'%pix_format)
         self.frame = av.VideoFrame(input_frame.width, input_frame.height, pix_format)
         self.frame.time_base = self.time_base
 

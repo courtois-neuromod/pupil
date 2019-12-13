@@ -74,7 +74,7 @@ class Aravis_Source(Base_Source):
         name=None,
         uid=None,
         exposure_mode="manual",
-        nbuffers=100
+        nbuffers=1000
     ):
 
         super().__init__(g_pool)
@@ -264,10 +264,11 @@ class Aravis_Source(Base_Source):
     def frame_size(self, new_size):
         if new_size == self.frame_size:
             return
-        height = self.set_feature('Height', new_size[1])
-        width = self.set_feature('Width', new_size[0])
+        self.set_feature('Height', new_size[1])
+        self.set_feature('Width', new_size[0])
         # we set the real size that the system accepted
-        size = (width, height)
+        size = (self.get_feature('Width'),
+            self.get_feature('Height'))
         """
         r_x,r_y,r_w,r_h,r_s= self.g_pool.u_r.get()
         if r_x+r_w > width:
