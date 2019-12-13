@@ -93,6 +93,8 @@ class Base_Source(Plugin):
                 self.g_pool.image_tex.update_from_yuv_buffer(
                     frame.yuv_buffer, frame.width, frame.height
                 )
+            elif frame.gray is not None:
+                self.g_pool.image_tex.update_from_ndarray(frame.gray)
             else:
                 self.g_pool.image_tex.update_from_ndarray(frame.bgr)
             gl_utils.glFlush()
@@ -230,7 +232,7 @@ class Base_Manager(Plugin):
             )
 
     def auto_activate_source(self):
-        """This function should be implemented in *_Manager classes 
+        """This function should be implemented in *_Manager classes
             to activate the corresponding source with following preferences:
                 eye0: Pupil Cam1/2/3 ID0
                 eye1: Pupil Cam1/2/3 ID1
