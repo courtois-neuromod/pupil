@@ -285,12 +285,12 @@ class X265_Writer(AV_Writer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        BIT_RATE = 1500000 * 1e3
+        BIT_RATE = 8000 #* 1e3
         self.video_stream.bit_rate = BIT_RATE
         self.video_stream.bit_rate_tolerance = BIT_RATE / 20
 
         self.video_stream.options = dict(
-            preset='faster',
+            preset='ultrafast',
             crf='18',
             #tune='zerolatency',
             )
@@ -307,11 +307,12 @@ class X265_Writer(AV_Writer):
         # setup av frame once to use as buffer throughout the process
         if input_frame.yuv_buffer is not None:
             pix_format = "yuv422p"
-        elif input_frame.bgr is not None:
-            pix_format = 'bgr24'
         elif input_frame.gray is not None:
             pix_format = "gray"
-        logger.info('pix_format: %s'%pix_format)
+        elif input_frame.bgr is not None:
+            pix_format = 'bgr24'
+        logger.debug('pix_format: %s'%pix_format)
+        self.video_stream.codec_context.pix_fmt = pix_format
         self.frame = av.VideoFrame(input_frame.width, input_frame.height, pix_format)
         self.frame.time_base = self.time_base
 
@@ -321,10 +322,10 @@ class X265_Writer(AV_Writer):
             self.frame.planes[0].update(y)
             self.frame.planes[1].update(u)
             self.frame.planes[2].update(v)
-        elif input_frame.bgr is not None:
-            self.frame.planes[0].update(input_frame.img)
         elif input_frame.gray is not None:
             self.frame.planes[0].update(input_frame.gray)
+        elif input_frame.bgr is not None:
+            self.frame.planes[0].update(input_frame.img)
 
         self.frame.pts = pts
 

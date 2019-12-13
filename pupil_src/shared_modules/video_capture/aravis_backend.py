@@ -35,10 +35,10 @@ class Frame(object):
         self.index = index
         self._img = None
         self._gray = None
-        if self._frame.ndim < 3:
+        if self._frame.ndim == 2:
             self._gray = self._frame
-        if self._frame.ndim == 3:
-            self.img = self._frame
+        elif self._frame.ndim == 3:
+            self._img = self._frame
         self.yuv_buffer = None
         self.height, self.width = frame.shape[:2]
 
@@ -51,12 +51,10 @@ class Frame(object):
 
     @property
     def bgr(self):
-        return self.img
+        return self._img
 
     @property
     def gray(self):
-        if self._gray is None:
-            self._gray = self._frame.mean(-1).astype(self._frame.dtype)
         return self._gray
 
 class Aravis_Source(Base_Source):
