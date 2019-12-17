@@ -221,6 +221,7 @@ class Aravis_Source(Base_Source):
 
     def recent_events(self, events):
         if (self.cam is None) or (not self._status):
+            time.sleep(0.02)
             return
         frame = self.get_frame()
         if frame is None:
