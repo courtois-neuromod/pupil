@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2019 Pupil Labs
+Copyright (C) 2012-2020 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -564,6 +564,9 @@ def eye(
             frame = event.get("frame")
             if frame:
                 f_width, f_height = g_pool.capture.frame_size
+                # TODO: Roi should be its own plugin. This way we could put it at the
+                # appropriate order for recent_events() to process frame resolution
+                # changes immediately after the backend.
                 if (g_pool.u_r.array_shape[0], g_pool.u_r.array_shape[1]) != (
                     f_height,
                     f_width,
@@ -662,6 +665,9 @@ def eye(
                         pos = normalize(pos, camera_render_size)
                         # Position in img pixels
                         pos = denormalize(pos, g_pool.capture.frame_size)
+
+                        # TODO: remove when ROI is plugin
+                        uroi_on_mouse_button(button, action, mods)
 
                         for plugin in g_pool.plugins:
                             if plugin.on_click(pos, button, action):

@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2019 Pupil Labs
+Copyright (C) 2012-2020 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -393,7 +393,7 @@ class UVC_Source(Base_Source):
 
             if np.isclose(frame.timestamp, 0):
                 # sometimes (probably only on windows) after disconnections, the first frame has 0 ts
-                logger.warning(
+                logger.debug(
                     "Received frame with invalid timestamp."
                     " This can happen after a disconnect."
                     " Frame will be dropped!"
