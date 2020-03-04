@@ -18,6 +18,8 @@ from .base_backend import InitialisationError, Base_Source, Base_Manager
 from camera_models import load_intrinsics
 from .utils import Check_Frame_Stripes, Exposure_Time
 
+from ._npufunc import subtract_nowrap
+
 from gi.repository import Aravis
 
 # logging
@@ -79,7 +81,7 @@ class Aravis_Source(Base_Source):
         self.cam = None
         self._restart_in = 3
         self._status = False
-        self._set_dark_image = True
+        self._set_dark_image = False
 
         logger.warning(
             "Activating camera: %s" % uid
@@ -113,6 +115,7 @@ class Aravis_Source(Base_Source):
 
             self.stream.set_property('packet_timeout',100000)
             self.set_feature('GevSCPSPacketSize', 1500)
+            #self.set_feature('PixelMappingFormat', 'LowBits')
             self.timestamp_freq = self.get_feature('GevTimestampTickFrequency')
             self.current_frame_idx = 0
 
@@ -127,16 +130,20 @@ class Aravis_Source(Base_Source):
             )
 
 
+    def _flush_buffers(self, keep=True):
+        buf = True
+        while buf:
+            buf = self.stream.try_pop_buffer()
+            if buf and keep:
+                self.stream.push_buffer(buf)
+
     def create_buffers(self):
 
         payload = self.cam.get_payload()
         if payload == self.payload and sum(self.stream.get_n_buffers())==self.nbuffers:
             return
 
-        # flush all buffers
-        buf = True
-        while buf:
-            buf = self.stream.try_pop_buffer()
+        self._flush_buffers(keep=False)
 
         self.payload = payload
         logger.info("Creating %d memory buffers of size %d"%(self.nbuffers, payload))
@@ -145,10 +152,10 @@ class Aravis_Source(Base_Source):
 
     def _start_capture(self):
         # set exposure to the minimum, should work in semi-dark environment
-        self.exposure_time_backup = self.exposure_time
-        self.exposure_time = 0
+        #self.exposure_time_backup = self.exposure_time
+        #self.exposure_time = 0
 
-        self._set_dark_image = True
+        #self._set_dark_image = True
 
         self.create_buffers()
         self.cam.start_acquisition()
@@ -156,7 +163,7 @@ class Aravis_Source(Base_Source):
         while frame is None:
             frame = self.get_frame()
 
-        self.exposure_time = self.exposure_time_backup
+        #self.exposure_time = self.exposure_time_backup
         self._status = True
         logger.info('started capture successfully')
 
@@ -177,6 +184,7 @@ class Aravis_Source(Base_Source):
             self._start_capture()
         else:
             self._stop_capture()
+            self._flush_buffers()
 
     def get_frame(self):
         buf = self.stream.try_pop_buffer()
@@ -196,11 +204,18 @@ class Aravis_Source(Base_Source):
 
         if self._set_dark_image:
             self.dark_image = data.copy()
+            logger.info('dark_image max = %d'%self.dark_image.max())
             self._set_dark_image = False
+            self.exposure_time = self.exposure_time_backup
+            #return Frame(time.time(), self.dark_image, index)
 
         if not self.dark_image is None:
-            np.subtract(data, self.dark_image, data)
+            #return Frame(time.time(), self.dark_image, index)
+            #np.subtract(data, self.dark_image, data)
+            #data[:] = (data < self.dark_image)*255
+            subtract_nowrap(data, self.dark_image, data)
 
+        #print('data minmax = %d, %d'%(data.min(),data.max()))
         return Frame(time.time(), data, index)
         #return Frame(ts/self.timestamp_freq, data, index)
 
@@ -396,7 +411,10 @@ class Aravis_Source(Base_Source):
     def set_dark_image(self):
         self.exposure_time_backup = self.exposure_time
         self.exposure_time = 0
+        self._status = False
+        self._flush_buffers()
         self._set_dark_image = True
+        self._status = True
 
     @property
     def jpeg_support(self):
@@ -577,7 +595,7 @@ class Aravis_Manager(Base_Manager):
             "frame_size": self.g_pool.capture.frame_size,
             "frame_rate": self.g_pool.capture.frame_rate,
             "exposure_time": 4000,
-            "global_gain": 1,
+            "global_gain": 0,
             "uid": source_uid,
         }
         if self.g_pool.process == "world":
