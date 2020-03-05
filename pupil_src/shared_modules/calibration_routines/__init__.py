@@ -11,6 +11,7 @@ See COPYING and COPYING.LESSER for license details.
 
 # import detector classes from sibling files
 from .screen_marker_calibration import Screen_Marker_Calibration
+from .fixed_screen_marker_calibration import Fixed_Screen_Marker_Calibration
 from .manual_marker_calibration import Manual_Marker_Calibration
 from .single_marker_calibration import Single_Marker_Calibration
 from .natural_features_calibration import Natural_Features_Calibration
@@ -28,6 +29,7 @@ from .calibration_plugin_base import Calibration_Plugin
 
 calibration_plugins = [
     Screen_Marker_Calibration,
+    Fixed_Screen_Marker_Calibration,
     Manual_Marker_Calibration,
     Single_Marker_Calibration,
     Natural_Features_Calibration,
