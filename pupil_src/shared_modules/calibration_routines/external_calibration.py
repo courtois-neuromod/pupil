@@ -5,7 +5,7 @@ from .finish_calibration import finish_calibration
 
 logger = logging.getLogger(__name__)
 
-class Mock_Calibration(Calibration_Plugin):
+class External_Calibration(Calibration_Plugin):
     """Calibrate using a marker on your screen
     We use a ring detector that moves across the screen to 9 sites
     Points are collected at sites - not between

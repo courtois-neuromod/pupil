@@ -16,6 +16,7 @@ from .manual_marker_calibration import Manual_Marker_Calibration
 from .single_marker_calibration import Single_Marker_Calibration
 from .natural_features_calibration import Natural_Features_Calibration
 from .hmd_calibration import HMD_Calibration, HMD_Calibration_3D
+from .external_calibration import External_Calibration
 from .gaze_mappers import (
     Gaze_Mapping_Plugin,
     Dummy_Gaze_Mapper,
@@ -35,6 +36,7 @@ calibration_plugins = [
     Natural_Features_Calibration,
     HMD_Calibration,
     HMD_Calibration_3D,
+    External_Calibration,
 ]
 
 gaze_mapping_plugins = [
