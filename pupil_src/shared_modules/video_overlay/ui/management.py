@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2019 Pupil Labs
+Copyright (C) 2012-2020 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -125,7 +125,9 @@ class UIManagementEyes(UIManagement):
             )
         )
         self._parent_menu.append(
-            ui.Switch("value", self.plugin().show_ellipses, label="Visualize Ellipses")
+            ui.Switch(
+                "value", self.plugin().show_ellipses, label="Visualize Pupil Detection"
+            )
         )
 
     def _add_overlay_menu(self, overlay):

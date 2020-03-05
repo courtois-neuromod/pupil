@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2019 Pupil Labs
+Copyright (C) 2012-2020 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -322,6 +322,9 @@ class Plugin_List(object):
                 expanded_initializers.append((plugin_by_name[name], name, args))
             except KeyError:
                 logger.debug(f"Plugin {name} failed to load, not available for import.")
+
+        expanded_initializers.sort(key=lambda data: data[0].order)
+
         # only add plugins that won't be replaced by newer plugins
         for i, (plugin, name, args) in enumerate(expanded_initializers):
             for new_plugin, new_name, _ in expanded_initializers[i + 1 :]:

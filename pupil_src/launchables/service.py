@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2019 Pupil Labs
+Copyright (C) 2012-2020 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -92,11 +92,6 @@ def service(
         from version_utils import VersionFormat
         import audio
         from uvc import get_time_monotonic
-
-        # trigger pupil detector cpp build:
-        import pupil_detectors
-
-        del pupil_detectors
 
         # Plug-ins
         from plugin import Plugin, Plugin_List, import_runtime_plugins

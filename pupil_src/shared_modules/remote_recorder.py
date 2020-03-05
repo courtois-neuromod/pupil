@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2019 Pupil Labs
+Copyright (C) 2012-2020 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -17,6 +17,11 @@ from pyglui import ui
 from plugin import Plugin
 
 logger = logging.getLogger(__name__)
+
+# Suppress pyre debug logs (except beacon)
+logger.debug("Suppressing pyre debug logs (except zbeacon)")
+logging.getLogger("pyre").setLevel(logging.WARNING)
+logging.getLogger("pyre.zbeacon").setLevel(logging.DEBUG)
 
 
 class Remote_Recording_State:

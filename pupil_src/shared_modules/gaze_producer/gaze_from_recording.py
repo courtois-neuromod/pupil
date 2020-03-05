@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2019 Pupil Labs
+Copyright (C) 2012-2020 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -21,7 +21,7 @@ class GazeFromRecording(GazeProducerBase):
     def __init__(self, g_pool):
         super().__init__(g_pool)
         self.g_pool.gaze_positions = self._load_gaze_data()
-        self.notify_all({"subject": "gaze_positions_changed"})
+        self._gaze_changed_announcer.announce_existing()
 
     def _load_gaze_data(self):
         gaze = fm.load_pldata_file(self.g_pool.rec_dir, "gaze")

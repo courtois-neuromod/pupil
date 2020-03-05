@@ -1,3 +1,16 @@
+"""
+(*)~---------------------------------------------------------------------------
+Pupil - eye tracking platform
+Copyright (C) 2012-2020 Pupil Labs
+
+Distributed under the terms of the GNU
+Lesser General Public License (LGPL v3.0).
+See COPYING and COPYING.LESSER for license details.
+---------------------------------------------------------------------------~(*)
+"""
+import logging
+
+from pupil_detectors import Detector2D, DetectorBase, Roi
 from pyglui import ui
 from pyglui.cygl.utils import draw_gl_texture
 
@@ -11,13 +24,12 @@ from gl_utils import (
 )
 from methods import normalize
 from plugin import Plugin
-from pupil_detectors import Detector2D, DetectorBase, Roi
 
-from .detector_base_plugin import PupilDetectorPlugin, PropertyProxy
+from .detector_base_plugin import PropertyProxy, PupilDetectorPlugin
 from .visualizer_2d import draw_pupil_outline
 
-import logging
 logger = logging.getLogger(__name__)
+
 
 class Detector2DPlugin(PupilDetectorPlugin):
     uniqueness = "by_base_class"
@@ -42,9 +54,13 @@ class Detector2DPlugin(PupilDetectorPlugin):
                 # skip the detection on that frame, return previous result
                 return self._recent_detection_result
         self._last_detect_timestamp = frame.timestamp
-        roi = Roi(*self.g_pool.u_r.get()[:4])
+
+        # convert roi-plugin to detector roi
+        roi = Roi(*self.g_pool.roi.bounds)
+
+        debug_img = frame.bgr if self.g_pool.display_mode == "algorithm" else None
         result = self.detector_2d.detect(
-            gray_img=frame.gray, color_img=frame.bgr, roi=roi
+            gray_img=frame.gray, color_img=debug_img, roi=roi,
         )
         eye_id = self.g_pool.eye_id
         location = result["location"]

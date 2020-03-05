@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2019 Pupil Labs
+Copyright (C) 2012-2020 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -9,22 +9,17 @@ See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
 
-import numpy as np
-from scipy.spatial import ConvexHull
-
-import OpenGL.GL as gl
-from glfw import *
-
-from pyglui import ui
-from pyglui.cygl.utils import draw_points_norm, draw_polyline_norm, RGBA
-
-from plugin import Plugin
-from calibration_routines.calibrate import closest_matches_monocular
-
+import logging
 from collections import namedtuple
 
-# logging
-import logging
+import OpenGL.GL as gl
+import numpy as np
+from pyglui import ui
+from pyglui.cygl.utils import draw_points_norm, draw_polyline_norm, RGBA
+from scipy.spatial import ConvexHull
+
+from calibration_routines.data_processing import closest_matches_monocular
+from plugin import Plugin
 
 logger = logging.getLogger(__name__)
 
