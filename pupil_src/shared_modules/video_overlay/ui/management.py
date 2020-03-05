@@ -125,9 +125,7 @@ class UIManagementEyes(UIManagement):
             )
         )
         self._parent_menu.append(
-            ui.Switch(
-                "value", self.plugin().show_ellipses, label="Visualize Pupil Detection"
-            )
+            ui.Switch("value", self.plugin().show_ellipses, label="Visualize Ellipses")
         )
 
     def _add_overlay_menu(self, overlay):

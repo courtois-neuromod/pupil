@@ -67,18 +67,18 @@ class Announcer:
         self._current_token = None
         plugin.add_observer("on_notify", self._on_notify)
 
-    def announce_new(self, delay=None, token_data=None):
+    def announce_new(self):
         """
         Announce that new data is available for the topic. New means that is has
         never been broadcasted before (not even in a previous run of the software).
         """
-        token = _normalize_token(token_data)
-        self._notify_all(token, delay=delay)
+        token = _create_new_token()
+        self._notify_all(token)
         _write_token_to_file(
             token, self._plugin_role, self._topic, self._plugin_name, self._rec_dir
         )
 
-    def announce_existing(self, delay=None):
+    def announce_existing(self):
         """
         Announce that data for a topic is available, which was already announced
         some time ago (the exact same data).
@@ -93,16 +93,15 @@ class Announcer:
             if read_token is not None:
                 self._current_token = read_token
             else:
-                self.announce_new(delay=delay)
+                self.announce_new()
                 return
-        self._notify_all(self._current_token, delay=delay)
+        self._notify_all(self._current_token)
 
-    def _notify_all(self, token, delay=None):
+    def _notify_all(self, token):
         self._plugin().notify_all(
             {
                 "subject": "data_changed.{}.announce_token".format(self._topic),
                 "token": token,
-                "delay": delay,
             }
         )
 
@@ -172,14 +171,6 @@ class Listener(Observable):
                     self._rec_dir,
                 )
                 self.on_data_changed()
-
-
-def _normalize_token(token_data):
-    if token_data is None:
-        return _create_new_token()
-    if isinstance(token_data, str):
-        return token_data
-    return str(hash(token_data))
 
 
 def _create_new_token():

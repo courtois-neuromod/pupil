@@ -8,4 +8,11 @@ Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-from .controller import ScanPathController
+
+try:
+    from .methods import *
+except ModuleNotFoundError:
+    # when running from source compile cpp extension if necessary.
+    from .build import build_cpp_extension
+    build_cpp_extension()
+    from .methods import *

@@ -10,16 +10,18 @@ See COPYING and COPYING.LESSER for license details.
 """
 
 import abc
+import collections
 import csv
 import logging
 import os
 import typing
 
+import csv_utils
 from pyglui import ui
 
-import csv_utils
 import player_methods as pm
 from plugin import Analysis_Plugin_Base
+
 
 # logging
 logger = logging.getLogger(__name__)
@@ -173,7 +175,7 @@ class Raw_Data_Exporter(Analysis_Plugin_Base):
                 positions_bisector=self.g_pool.gaze_positions,
                 timestamps=self.g_pool.timestamps,
                 export_window=export_window,
-                export_dir=export_dir,
+                export_dir=export_dir
             )
 
         if self.should_export_field_info:
@@ -184,6 +186,7 @@ class Raw_Data_Exporter(Analysis_Plugin_Base):
 
 
 class _Base_Positions_Exporter(abc.ABC):
+
     @classmethod
     @abc.abstractmethod
     def csv_export_filename(cls) -> str:
@@ -196,19 +199,19 @@ class _Base_Positions_Exporter(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def dict_export(
-        cls, raw_value: csv_utils.CSV_EXPORT_RAW_TYPE, world_index: int
-    ) -> dict:
+    def dict_export(cls, raw_value: csv_utils.CSV_EXPORT_RAW_TYPE, world_index: int) -> dict:
         pass
 
-    def csv_export_write(
-        self, positions_bisector, timestamps, export_window, export_dir
-    ):
+    def csv_export_write(self, positions_bisector, timestamps, export_window, export_dir):
         export_file = type(self).csv_export_filename()
         export_path = os.path.join(export_dir, export_file)
 
-        export_section = positions_bisector.init_dict_for_window(export_window)
-        export_world_idc = pm.find_closest(timestamps, export_section["data_ts"])
+        export_section = positions_bisector.init_dict_for_window(
+            export_window
+        )
+        export_world_idc = pm.find_closest(
+            timestamps, export_section["data_ts"]
+        )
 
         with open(export_path, "w", encoding="utf-8", newline="") as csvfile:
             csv_header = type(self).csv_export_labels()
@@ -223,6 +226,7 @@ class _Base_Positions_Exporter(abc.ABC):
 
 
 class Pupil_Positions_Exporter(_Base_Positions_Exporter):
+
     @classmethod
     def csv_export_filename(cls) -> str:
         return "pupil_positions.csv"
@@ -270,9 +274,7 @@ class Pupil_Positions_Exporter(_Base_Positions_Exporter):
         )
 
     @classmethod
-    def dict_export(
-        cls, raw_value: csv_utils.CSV_EXPORT_RAW_TYPE, world_index: int
-    ) -> dict:
+    def dict_export(cls, raw_value: csv_utils.CSV_EXPORT_RAW_TYPE, world_index: int) -> dict:
         # 2d data
         pupil_timestamp = str(raw_value["timestamp"])
         eye_id = raw_value["id"]
@@ -364,6 +366,7 @@ class Pupil_Positions_Exporter(_Base_Positions_Exporter):
 
 
 class Gaze_Positions_Exporter(_Base_Positions_Exporter):
+
     @classmethod
     def csv_export_filename(cls) -> str:
         return "gaze_positions.csv"
@@ -395,9 +398,7 @@ class Gaze_Positions_Exporter(_Base_Positions_Exporter):
         )
 
     @classmethod
-    def dict_export(
-        cls, raw_value: csv_utils.CSV_EXPORT_RAW_TYPE, world_index: int
-    ) -> dict:
+    def dict_export(cls, raw_value: csv_utils.CSV_EXPORT_RAW_TYPE, world_index: int) -> dict:
 
         gaze_timestamp = str(raw_value["timestamp"])
         confidence = raw_value["confidence"]
@@ -423,28 +424,12 @@ class Gaze_Positions_Exporter(_Base_Positions_Exporter):
                 eye_centers0_3d = raw_value["eye_centers_3d"].get(0, [None, None, None])
                 eye_centers1_3d = raw_value["eye_centers_3d"].get(1, [None, None, None])
                 #
-                gaze_normals0_3d = raw_value["gaze_normals_3d"].get(
-                    0, [None, None, None]
-                )
-                gaze_normals1_3d = raw_value["gaze_normals_3d"].get(
-                    1, [None, None, None]
-                )
+                gaze_normals0_3d = raw_value["gaze_normals_3d"].get(0, [None, None, None])
+                gaze_normals1_3d = raw_value["gaze_normals_3d"].get(1, [None, None, None])
             # monocular
             elif raw_value.get("eye_center_3d", None) is not None:
-                try:
-                    eye_id = raw_value["base_data"][0]["id"]
-                except (KeyError, IndexError):
-                    logger.warning(
-                        f"Unexpected raw base_data for monocular gaze!"
-                        f" Data: {raw_value.get('base_data', None)}"
-                    )
-                else:
-                    if str(eye_id) == "0":
-                        eye_centers0_3d = raw_value["eye_center_3d"]
-                        gaze_normals0_3d = raw_value["gaze_normal_3d"]
-                    elif str(eye_id) == "1":
-                        eye_centers1_3d = raw_value["eye_center_3d"]
-                        gaze_normals1_3d = raw_value["gaze_normal_3d"]
+                eye_centers0_3d = raw_value["eye_center_3d"]
+                gaze_normals0_3d = raw_value["gaze_normal_3d"]
 
         return {
             "gaze_timestamp": gaze_timestamp,
