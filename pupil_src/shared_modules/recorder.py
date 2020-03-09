@@ -23,7 +23,7 @@ from ndsi import H264Writer
 from pyglui import ui
 
 import csv_utils
-from av_writer import MPEG_Writer, JPEG_Writer
+from av_writer import MPEG_Writer, JPEG_Writer, X265_Writer
 from file_methods import PLData_Writer, load_object
 from methods import get_system_info, timer
 from video_capture.ndsi_backend import NDSI_Source

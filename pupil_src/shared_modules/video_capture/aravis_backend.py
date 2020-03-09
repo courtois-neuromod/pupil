@@ -168,9 +168,12 @@ class Aravis_Source(Base_Source):
 
         self.create_buffers()
         self.cam.start_acquisition()
-        frame = None
-        while frame is None:
-            frame = self.get_frame()
+        buf = None
+        self.timestamp_offset = self.g_pool.get_timestamp()
+        while buf is None:
+            buf = self.stream.try_pop_buffer()
+        self.timestamp_offset -= buf.get_timestamp()*1e-9
+        logger.info('first frame at %f %f %f'%(buf.get_timestamp(), self.timestamp_offset, self.g_pool.get_timestamp()))
 
         #self.exposure_time = self.exposure_time_backup
         self._status = True
@@ -228,7 +231,7 @@ class Aravis_Source(Base_Source):
         #return Frame(time.time(), data, index)
         #print(ts*1e-9)
         #return Frame(ts/self.timestamp_freq, data, index)
-        return Frame(ts*1e-9, data, index)
+        return Frame(ts*1e-9 + self.timestamp_offset, data, index)
 
     def _array_from_buffer_address(self, buf):
         if not buf:

@@ -518,8 +518,10 @@ def eye(
                                 g_pool.capture.frame_size[1],
                                 g_pool.capture.frame_rate,
                             )
-                        else:
+                        elif hasattr(g_pool.capture._recent_frame, "gray"):
                             g_pool.writer = X265_Writer(video_path, start_time_synced)
+                        else:
+                            g_pool.writer = MPEG_Writer(video_path, start_time_synced)
                 elif subject == "recording.stopped":
                     if g_pool.writer:
                         logger.info("Done recording.")
