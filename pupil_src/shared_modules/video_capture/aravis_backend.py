@@ -117,6 +117,7 @@ class Aravis_Source(Base_Source):
             self.set_feature('GevSCPSPacketSize', 1500)
             #self.set_feature('PixelMappingFormat', 'LowBits')
             self.timestamp_freq = self.get_feature('GevTimestampTickFrequency')
+            logger.info('timestamp_freq=%f %s'%(self.timestamp_freq, self.timestamp_freq.__class__))
             self.current_frame_idx = 0
 
             self.exposure_time = exposure_time
@@ -124,6 +125,7 @@ class Aravis_Source(Base_Source):
             self.frame_size = frame_size
             self.frame_rate = frame_rate
 
+            self._start_capture()
         else:
             self._intrinsics = load_intrinsics(
                 self.g_pool.user_dir, self.name, self.frame_size
@@ -157,11 +159,21 @@ class Aravis_Source(Base_Source):
 
         #self._set_dark_image = True
 
+        # The camera is gigevision1.2, which doesn't support PTP apparently
+        # maybe this is overkill for fMRI sampling rate
+        #os_time = time.time()
+        #latch_res = self.dev.execute_command('GevTimestampControlLatch')
+        #camera_ts = self.get_feature('GevTimestampValue')
+        #logger.info((os_time, latch_res, camera_ts))
+
         self.create_buffers()
         self.cam.start_acquisition()
-        frame = None
-        while frame is None:
-            frame = self.get_frame()
+        buf = None
+        self.timestamp_offset = self.g_pool.get_timestamp()
+        while buf is None:
+            buf = self.stream.try_pop_buffer()
+        self.timestamp_offset -= buf.get_timestamp()*1e-9
+        logger.info('first frame at %f %f %f'%(buf.get_timestamp(), self.timestamp_offset, self.g_pool.get_timestamp()))
 
         #self.exposure_time = self.exposure_time_backup
         self._status = True
@@ -216,8 +228,10 @@ class Aravis_Source(Base_Source):
             subtract_nowrap(data, self.dark_image, data)
 
         #print('data minmax = %d, %d'%(data.min(),data.max()))
-        return Frame(time.time(), data, index)
+        #return Frame(time.time(), data, index)
+        #print(ts*1e-9)
         #return Frame(ts/self.timestamp_freq, data, index)
+        return Frame(ts*1e-9 + self.timestamp_offset, data, index)
 
     def _array_from_buffer_address(self, buf):
         if not buf:
