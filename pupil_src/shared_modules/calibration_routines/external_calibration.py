@@ -23,6 +23,9 @@ class External_Calibration(Calibration_Plugin):
     def init_ui(self):
         pass
 
+    def deinit_ui(self):
+        pass
+
     def on_notify(self, notification):
         if notification["subject"] == 'calibrate.from_external_data':
             print(self.g_pool.active_gaze_mapping_plugin)
