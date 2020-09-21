@@ -18,9 +18,12 @@ class External_Calibration(Calibration_Plugin):
         class MockCapture():
             def __init__(self, frame_size):
                 self.frame_size = frame_size
-        self.g_pool.capture = MockCapture(frame_size)
+        #self.g_pool.capture = MockCapture(frame_size)
 
     def init_ui(self):
+        pass
+
+    def deinit_ui(self):
         pass
 
     def on_notify(self, notification):

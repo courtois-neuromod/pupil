@@ -250,7 +250,7 @@ class Aravis_Source(Base_Source):
 
     def recent_events(self, events):
         if (self.cam is None) or (not self._status):
-            time.sleep(0.02)
+            time.sleep(0.0005) # half the max frame rate of the camera
             return
         frame = self.get_frame()
         if frame is None:
