@@ -13,9 +13,8 @@ import time
 import logging
 import numpy as np
 import ctypes
-from version_utils import VersionFormat
 from .base_backend import InitialisationError, Base_Source, Base_Manager
-from camera_models import load_intrinsics
+from camera_models import Camera_Model
 from .utils import Check_Frame_Stripes, Exposure_Time
 
 from ._npufunc import subtract_nowrap
@@ -127,7 +126,7 @@ class Aravis_Source(Base_Source):
 
             self._start_capture()
         else:
-            self._intrinsics = load_intrinsics(
+            self._intrinsics = Camera_Model.from_file(
                 self.g_pool.user_dir, self.name, self.frame_size
             )
 
