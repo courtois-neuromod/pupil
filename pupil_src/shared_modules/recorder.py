@@ -23,13 +23,17 @@ from ndsi import H264Writer
 from pyglui import ui
 
 import csv_utils
-from av_writer import MPEG_Writer, JPEG_Writer, X265_Writer
+from av_writer import MPEG_Writer, JPEG_Writer, X265_Writer, NonMonotonicTimestampError
 from file_methods import PLData_Writer, load_object
 from methods import get_system_info, timer
 from video_capture.ndsi_backend import NDSI_Source
 
-from pupil_recording.info import Version
 from pupil_recording.info import RecordingInfoFile
+
+from gaze_mapping.notifications import (
+    CalibrationSetupNotification,
+    CalibrationResultNotification,
+)
 
 # from scipy.interpolate import UnivariateSpline
 from plugin import System_Plugin_Base
@@ -239,14 +243,15 @@ class Recorder(System_Plugin_Base):
         if notification.get("record", False) and self.running:
             if "timestamp" not in notification:
                 logger.error("Notification without timestamp will not be saved.")
-            else:
-                notification["topic"] = "notify." + notification["subject"]
-                try:
-                    writer = self.pldata_writers["notify"]
-                except KeyError:
-                    writer = PLData_Writer(self.rec_path, "notify")
-                    self.pldata_writers["notify"] = writer
-                writer.append(notification)
+                notification["timestamp"] = self.g_pool.get_timestamp()
+            # else:
+            notification["topic"] = "notify." + notification["subject"]
+            try:
+                writer = self.pldata_writers["notify"]
+            except KeyError:
+                writer = PLData_Writer(self.rec_path, "notify")
+                self.pldata_writers["notify"] = writer
+            writer.append(notification)
 
         elif notification["subject"] == "recording.should_start":
             if self.running:
@@ -280,8 +285,9 @@ class Recorder(System_Plugin_Base):
             frame = self.g_pool.capture._recent_frame
             if frame is None:
                 logger.error(
-                    "Recording a Pupil Mobile stream requires a connection!"
-                    " Aborting recording."
+                    "Your connection does not seem to be stable enough for "
+                    "recording Pupil Mobile via WiFi. We recommend recording "
+                    "on the phone."
                 )
                 return
             if abs(frame.timestamp - start_time_synced) > TIMESTAMP_ERROR_THRESHOLD:
@@ -327,7 +333,7 @@ class Recorder(System_Plugin_Base):
         self.meta_info.recording_software_name = (
             RecordingInfoFile.RECORDING_SOFTWARE_NAME_PUPIL_CAPTURE
         )
-        self.meta_info.recording_software_version = self.g_pool.version.vstring
+        self.meta_info.recording_software_version = str(self.g_pool.version)
         self.meta_info.recording_name = self.session_name
         self.meta_info.start_time_synced_s = start_time_synced
         self.meta_info.start_time_system_s = self.start_time
@@ -347,18 +353,24 @@ class Recorder(System_Plugin_Base):
         else:
             self.writer = MPEG_Writer(self.video_path, start_time_synced)
 
-        try:
-            cal_pt_path = os.path.join(self.g_pool.user_dir, "user_calibration_data")
-            cal_data = load_object(cal_pt_path)
-            notification = {"subject": "calibration.calibration_data", "record": True}
-            notification.update(cal_data)
-            notification["topic"] = "notify." + notification["subject"]
+        calibration_data_notification_classes = [
+            CalibrationSetupNotification,
+            CalibrationResultNotification,
+        ]
+        writer = PLData_Writer(self.rec_path, "notify")
 
-            writer = PLData_Writer(self.rec_path, "notify")
-            writer.append(notification)
-            self.pldata_writers["notify"] = writer
-        except FileNotFoundError:
-            pass
+        for note_class in calibration_data_notification_classes:
+            try:
+                file_path = os.path.join(self.g_pool.user_dir, note_class.file_name())
+                note = note_class.from_dict(load_object(file_path))
+                note_dict = note.as_dict()
+
+                note_dict["topic"] = "notify." + note_dict["subject"]
+                writer.append(note_dict)
+            except FileNotFoundError:
+                continue
+
+        self.pldata_writers["notify"] = writer
 
         if self.show_info_menu:
             self.open_info_menu()
@@ -436,9 +448,19 @@ class Recorder(System_Plugin_Base):
                     writer.extend(data)
             if "frame" in events:
                 frame = events["frame"]
-                self.writer.write_video_frame(frame)
-                self.frame_count += 1
-
+                try:
+                    self.writer.write_video_frame(frame)
+                    self.frame_count += 1
+                except NonMonotonicTimestampError as e:
+                    logger.error(
+                        "Recorder received non-monotonic timestamp!"
+                        " Stopping the recording!"
+                    )
+                    logger.debug(str(e))
+                    self.notify_all({"subject": "recording.should_stop"})
+                    self.notify_all(
+                        {"subject": "recording.should_stop", "remote_notify": "all"}
+                    )
             # # cv2.putText(frame.img, "Frame %s"%self.frame_count,(200,200), cv2.FONT_HERSHEY_SIMPLEX,1,(255,100,100))
 
             self.button.status_text = self.get_rec_time_str()
@@ -499,7 +521,7 @@ class Recorder(System_Plugin_Base):
 
     def cleanup(self):
         """gets called when the plugin get terminated.
-           either volunatily or forced.
+        either volunatily or forced.
         """
         if self.running:
             self.stop()

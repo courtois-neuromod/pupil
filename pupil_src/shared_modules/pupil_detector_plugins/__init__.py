@@ -13,31 +13,30 @@ import typing as T
 
 from .detector_2d_plugin import Detector2DPlugin
 from .detector_3d_plugin import Detector3DPlugin
-from .detector_base_plugin import PupilDetectorPlugin
-from .detector_dummy_plugin import DetectorDummyPlugin
+from .detector_base_plugin import PupilDetectorPlugin, EVENT_KEY
 
 logger = logging.getLogger(__name__)
 
 
 def available_detector_plugins() -> T.Tuple[
-    PupilDetectorPlugin, T.List[PupilDetectorPlugin]
+    PupilDetectorPlugin, PupilDetectorPlugin, T.List[PupilDetectorPlugin]
 ]:
     """Load and list available plugins, including default
-    
-    Returns:
-        T.Tuple[PupilDetectorPlugin, T.List[PupilDetectorPlugin]]
-        --  Return tuple of default plugin, and list available plugins.
-            Default is required to be in the list of available plugins.
+
+    Returns tuple of default2D, default3D, and list of all detectors.
     """
 
-    all_plugins = [DetectorDummyPlugin, Detector2DPlugin, Detector3DPlugin]
-    default_plugin = Detector3DPlugin
+    all_plugins = [Detector2DPlugin, Detector3DPlugin]
+    default2D = Detector2DPlugin
+    default3D = Detector3DPlugin
 
     try:
-        from py3d import Detector3DRefractionPlugin
-
-        all_plugins.append(Detector3DRefractionPlugin)
+        from .pye3d_plugin import Pye3DPlugin
     except ImportError:
-        logging.info("Refraction corrected 3D pupil detector not available")
+        logging.info("Refraction corrected 3D pupil detector not available!")
+    else:
+        logging.info("Using refraction corrected 3D pupil detector.")
+        all_plugins.append(Pye3DPlugin)
+        default3D = Pye3DPlugin
 
-    return default_plugin, all_plugins
+    return default2D, default3D, all_plugins

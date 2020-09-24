@@ -7,7 +7,7 @@ Most of this works via **apt**! Just copy paste into the terminal and listen to 
 ## General Dependencies
 
 ```sh
-sudo apt install -y pkg-config git cmake build-essential nasm wget python3-setuptools libusb-1.0-0-dev  python3-dev python3-pip python3-numpy python3-scipy libglew-dev libglfw3-dev libtbb-dev
+sudo apt install -y pkg-config git cmake build-essential nasm wget python3-setuptools libusb-1.0-0-dev  python3-dev python3-pip python3-numpy python3-scipy libglew-dev libtbb-dev
 
 # ffmpeg >= 3.2
 sudo apt install -y libavformat-dev libavcodec-dev libavdevice-dev libavutil-dev libswscale-dev libavresample-dev ffmpeg x264 x265 libportaudio2 portaudio19-dev
@@ -20,6 +20,21 @@ sudo apt install -y libgoogle-glog-dev libatlas-base-dev libeigen3-dev
 sudo apt install -y libceres-dev
 ```
 
+## glfw
+Pupil requires glfw v3.3.2, which you can install from source with:
+```sh
+sudo apt install xorg-dev
+git clone https://github.com/glfw/glfw
+cd glfw
+git checkout 3.3.2
+mkdir build
+cd build
+cmake -DBUILD_SHARED_LIBS=ON ..
+make
+sudo make install
+sudo ldconfig
+```
+
 ## Turbojpeg
 
 ```sh
@@ -30,6 +45,20 @@ cd libjpeg-turbo-1.5.1
 sudo make install
 sudo ldconfig
 ```
+
+## Custom Version of libusb for 200hz cameras
+
+This is **ONLY** required if you are using 200hz cameras. Otherwise it can be ignored!
+
+1. Build or download fixed binary from release: https://github.com/pupil-labs/libusb/releases/tag/v1.0.21-rc6-fixes
+1. Replace system libusb-1.0.so.0 with this binary. You can find the path of the system library with
+
+    ```sh
+    dpkg -L libusb-1.0-0-dev | grep libusb-1.0.so
+    ```
+
+    Please note that this command gives you the location of `libusb-1.0.so` while you need to replace `libusb-1.0.so.0`, but the required file should be found in the same folder.
+
 
 ## libuvc
 ```sh
@@ -64,6 +93,7 @@ pip install psutil
 pip install pyaudio
 pip install pyopengl
 pip install pyzmq
+pip install scikit-learn
 pip install scipy
 pip install git+https://github.com/zeromq/pyre
 
@@ -73,8 +103,6 @@ pip install git+https://github.com/pupil-labs/PyAV
 pip install git+https://github.com/pupil-labs/pyuvc
 pip install git+https://github.com/pupil-labs/pyndsi
 pip install git+https://github.com/pupil-labs/pyglui
-pip install git+https://github.com/pupil-labs/nslr
-pip install git+https://github.com/pupil-labs/nslr-hmm
 ```
 
 ### OpenCV Troubleshooting

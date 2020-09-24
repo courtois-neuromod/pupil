@@ -32,12 +32,13 @@ logger = logging.getLogger(__name__)
 
 
 class Detector2DPlugin(PupilDetectorPlugin):
-    uniqueness = "by_base_class"
+    uniqueness = "by_class"
     icon_font = "pupil_icons"
     icon_chr = chr(0xEC18)
 
     label = "C++ 2d detector"
     identifier = "2d"
+    order = 0.100
 
     def __init__(
         self, g_pool=None, namespaced_properties=None, detector_2d: Detector2D = None
@@ -46,22 +47,15 @@ class Detector2DPlugin(PupilDetectorPlugin):
         self.detector_2d = detector_2d or Detector2D(namespaced_properties or {})
         self.proxy = PropertyProxy(self.detector_2d)
 
-    def detect(self, frame):
-        roi = Roi(*self.g_pool.u_r.get()[:4])
-        if (
-            not 0 <= roi.x_min <= roi.x_max < frame.width
-            or not 0 <= roi.y_min <= roi.y_max < frame.height
-        ):
-            # TODO: Invalid ROIs can occur when switching camera resolutions, because we
-            # adjust the roi only after all plugin recent_events() have been called.
-            # Optimally we make a plugin out of the ROI and call its recent_events()
-            # immediately after the backend, before the detection.
-            logger.debug(f"Invalid Roi {roi} for img {frame.width}x{frame.height}!")
-            return None
+    def detect(self, frame, **kwargs):
+        # convert roi-plugin to detector roi
+        roi = Roi(*self.g_pool.roi.bounds)
 
         debug_img = frame.bgr if self.g_pool.display_mode == "algorithm" else None
         result = self.detector_2d.detect(
-            gray_img=frame.gray, color_img=debug_img, roi=roi,
+            gray_img=frame.gray,
+            color_img=debug_img,
+            roi=roi,
         )
         eye_id = self.g_pool.eye_id
         location = result["location"]
@@ -69,7 +63,7 @@ class Detector2DPlugin(PupilDetectorPlugin):
             location, (frame.width, frame.height), flip_y=True
         )
         result["timestamp"] = frame.timestamp
-        result["topic"] = f"pupil.{eye_id}"
+        result["topic"] = f"pupil.{eye_id}.{self.identifier}"
         result["id"] = eye_id
         result["method"] = "2d c++"
         return result
@@ -84,10 +78,10 @@ class Detector2DPlugin(PupilDetectorPlugin):
 
     def gl_display(self):
         if self._recent_detection_result:
-            draw_pupil_outline(self._recent_detection_result)
+            draw_pupil_outline(self._recent_detection_result, color_rgb=(0, 0.5, 1))
 
     def init_ui(self):
-        self.add_menu()
+        super().init_ui()
         self.menu.label = self.pretty_class_name
         self.menu_icon.label_font = "pupil_icons"
         info = ui.Info_Text(
@@ -126,6 +120,3 @@ class Detector2DPlugin(PupilDetectorPlugin):
                 step=1,
             )
         )
-
-    def deinit_ui(self):
-        self.remove_menu()

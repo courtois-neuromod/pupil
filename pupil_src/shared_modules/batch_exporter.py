@@ -28,7 +28,7 @@ if __name__ == "__main__":
     pupil_base_dir = os.path.abspath(__file__).rsplit("pupil_src", 1)[0]
     sys.path.append(os.path.join(pupil_base_dir, "pupil_src", "shared_modules"))
 
-from plugin import Analysis_Plugin_Base, System_Plugin_Base
+from plugin import Plugin, System_Plugin_Base
 
 from exporter import export as export_function
 from player_methods import is_pupil_rec_dir
@@ -36,9 +36,9 @@ from player_methods import is_pupil_rec_dir
 
 def get_recording_dirs(data_dir):
     """
-        You can supply a data folder or any folder
-        - all folders within will be checked for necessary files
-        - in order to make a visualization
+    You can supply a data folder or any folder
+    - all folders within will be checked for necessary files
+    - in order to make a visualization
     """
     if is_pupil_rec_dir(data_dir):
         yield data_dir
@@ -199,7 +199,7 @@ class Batch_Export(System_Plugin_Base):
         )
 
 
-class Batch_Exporter(Analysis_Plugin_Base):
+class Batch_Exporter(Plugin):
     """The Batch_Exporter searches for available recordings and exports them to a common location"""
 
     icon_chr = chr(0xEC05)

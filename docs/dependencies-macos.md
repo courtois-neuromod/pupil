@@ -78,6 +78,7 @@ pip install psutil
 pip install pyaudio
 pip install pyopengl
 pip install pyzmq
+pip install scikit-learn
 pip install scipy
 pip install git+https://github.com/zeromq/pyre
 
@@ -87,8 +88,6 @@ pip install git+https://github.com/pupil-labs/PyAV
 pip install git+https://github.com/pupil-labs/pyuvc
 pip install git+https://github.com/pupil-labs/pyndsi
 pip install git+https://github.com/pupil-labs/pyglui
-pip install git+https://github.com/pupil-labs/nslr
-pip install git+https://github.com/pupil-labs/nslr-hmm
 ```
 
 **NOTE:** Installing **pyglui** might fail on newer versions of **macOS** due to missing OpenGL headers. In this case, you need to install Xcode which comes with the required header files.

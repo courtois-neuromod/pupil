@@ -44,11 +44,12 @@ from pyglui.pyfontstash import fontstash
 from scipy.spatial.distance import pdist
 
 import background_helper as bh
+import data_changed
 import file_methods as fm
+from observable import Observable
 import player_methods as pm
-from eye_movement.utils import can_use_3d_gaze_mapping
 from methods import denormalize
-from plugin import Analysis_Plugin_Base
+from plugin import Plugin
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ class FixationDetectionMethod(enum.Enum):
     GAZE_3D = "3d gaze"
 
 
-class Fixation_Detector_Base(Analysis_Plugin_Base):
+class Fixation_Detector_Base(Plugin):
     icon_chr = chr(0xEC03)
     icon_font = "pupil_icons"
 
@@ -152,6 +153,10 @@ def gaze_dispersion(capture, gaze_subset, method: FixationDetectionMethod) -> fl
     return dist
 
 
+def can_use_3d_gaze_mapping(gaze_data) -> bool:
+    return all("gaze_point_3d" in gp for gp in gaze_data)
+
+
 def detect_fixations(
     capture, gaze_data, max_dispersion, min_duration, max_duration, min_data_confidence
 ):
@@ -221,7 +226,11 @@ def detect_fixations(
         # binary search
         while left_idx < right_idx - 1:
             middle_idx = (left_idx + right_idx) // 2
-            dispersion = gaze_dispersion(capture, slicable[: middle_idx + 1], method,)
+            dispersion = gaze_dispersion(
+                capture,
+                slicable[: middle_idx + 1],
+                method,
+            )
             if dispersion <= max_dispersion:
                 left_idx = middle_idx
             else:
@@ -242,7 +251,7 @@ def detect_fixations(
     yield "Fixation detection complete", ()
 
 
-class Offline_Fixation_Detector(Fixation_Detector_Base):
+class Offline_Fixation_Detector(Observable, Fixation_Detector_Base):
     """Dispersion-duration-based fixation detector.
 
     This plugin detects fixations based on a dispersion threshold in terms of
@@ -269,7 +278,6 @@ class Offline_Fixation_Detector(Fixation_Detector_Base):
         show_fixations=True,
     ):
         super().__init__(g_pool)
-        # g_pool.min_data_confidence
         self.max_dispersion = max_dispersion
         self.min_duration = min_duration
         self.max_duration = max_duration
@@ -279,6 +287,10 @@ class Offline_Fixation_Detector(Fixation_Detector_Base):
         self.prev_index = -1
         self.bg_task = None
         self.status = ""
+        self._gaze_changed_listener = data_changed.Listener(
+            "gaze_positions", g_pool.rec_dir, plugin=self
+        )
+        self._gaze_changed_listener.add_observer("on_data_changed", self._classify)
         self.notify_all(
             {"subject": "fixation_detector.should_recalculate", "delay": 0.5}
         )
@@ -428,9 +440,6 @@ class Offline_Fixation_Detector(Fixation_Detector_Base):
         }
 
     def on_notify(self, notification):
-        if notification["subject"] == "gaze_positions_changed":
-            logger.info("Gaze postions changed. Recalculating.")
-            self._classify()
         if notification["subject"] == "min_data_confidence_changed":
             logger.info("Minimal data confidence changed. Recalculating.")
             self._classify()
@@ -678,21 +687,21 @@ class Fixation_Detector(Fixation_Detector_Base):
 
     order = 0.19
 
-    def __init__(
-        self, g_pool, max_dispersion=3.0, min_duration=300, confidence_threshold=0.75
-    ):
+    def __init__(self, g_pool, max_dispersion=3.0, min_duration=300, **kwargs):
         super().__init__(g_pool)
         self.history = []
         self.min_duration = min_duration
         self.max_dispersion = max_dispersion
-        self.confidence_threshold = confidence_threshold
         self.id_counter = 0
+        self.recent_fixation = None
 
     def recent_events(self, events):
         events["fixations"] = []
         gaze = events["gaze"]
 
-        gaze = (gp for gp in gaze if gp["confidence"] >= self.confidence_threshold)
+        gaze = (
+            gp for gp in gaze if gp["confidence"] >= self.g_pool.min_data_confidence
+        )
         self.history.extend(gaze)
         self.history.sort(key=lambda gp: gp["timestamp"])
 
@@ -793,16 +802,6 @@ class Fixation_Detector(Fixation_Detector_Base):
             )
         )
 
-        self.menu.append(
-            ui.Slider(
-                "confidence_threshold",
-                self,
-                min=0.0,
-                max=1.0,
-                label="Confidence Threshold",
-            )
-        )
-
         self.glfont = fontstash.Context()
         self.glfont.add_font("opensans", ui.get_opensans_font_path())
         self.glfont.set_size(22)
@@ -816,5 +815,4 @@ class Fixation_Detector(Fixation_Detector_Base):
         return {
             "max_dispersion": self.max_dispersion,
             "min_duration": self.min_duration,
-            "confidence_threshold": self.confidence_threshold,
         }

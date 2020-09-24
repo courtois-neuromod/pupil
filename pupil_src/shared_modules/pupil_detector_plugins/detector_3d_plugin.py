@@ -9,7 +9,9 @@ See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
 import logging
+from version_utils import parse_version
 
+import pupil_detectors
 from pupil_detectors import Detector3D, DetectorBase, Roi
 from pyglui import ui
 from pyglui.cygl.utils import draw_gl_texture
@@ -30,36 +32,78 @@ from .visualizer_3d import Eye_Visualizer
 
 logger = logging.getLogger(__name__)
 
+if parse_version(pupil_detectors.__version__) < parse_version("1.1.1"):
+    msg = (
+        f"This version of Pupil requires pupil_detectors >= 1.1.1."
+        f" You are running with pupil_detectors == {pupil_detectors.__version__}."
+        f" Please upgrade to a newer version!"
+    )
+    logger.error(msg)
+    raise RuntimeError(msg)
+
 
 class Detector3DPlugin(PupilDetectorPlugin):
-    uniqueness = "by_base_class"
+    uniqueness = "by_class"
     icon_font = "pupil_icons"
     icon_chr = chr(0xEC19)
 
     label = "C++ 3d detector"
     identifier = "3d"
+    order = 0.101
 
     def __init__(
         self, g_pool=None, namespaced_properties=None, detector_3d: Detector3D = None
     ):
         super().__init__(g_pool=g_pool)
-        self.detector_3d = detector_3d or Detector3D(namespaced_properties or {})
-        self.proxy = PropertyProxy(self.detector_3d)
-        # debug window
-        self.debugVisualizer3D = Eye_Visualizer(g_pool, self.detector_3d.focal_length())
+        detector = detector_3d or Detector3D(namespaced_properties or {})
+        self._initialize(detector)
 
-    def detect(self, frame):
-        roi = Roi(*self.g_pool.u_r.get()[:4])
-        if (
-            not 0 <= roi.x_min <= roi.x_max < frame.width
-            or not 0 <= roi.y_min <= roi.y_max < frame.height
-        ):
-            # TODO: Invalid ROIs can occur when switching camera resolutions, because we
-            # adjust the roi only after all plugin recent_events() have been called.
-            # Optimally we make a plugin out of the ROI and call its recent_events()
-            # immediately after the backend, before the detection.
-            logger.debug(f"Invalid Roi {roi} for img {frame.width}x{frame.height}!")
-            return None
+    @property
+    def detector_3d(self):
+        return self._detector_internal
+
+    def _initialize(self, detector: Detector3D):
+        # initialize plugin with a detector instance, safe to call multiple times
+        self._detector_internal = detector
+        self.proxy = PropertyProxy(self.detector_3d)
+
+        # In case of re-initialization, we need to close the debug window or else we
+        # leak the opengl window. We can open the new one again afterwards.
+        try:
+            debug_window_was_open = self.is_debug_window_open
+        except AttributeError:
+            # debug window does not exist yet
+            debug_window_was_open = False
+        if debug_window_was_open:
+            self.debug_window_close()
+        self.debugVisualizer3D = Eye_Visualizer(
+            self.g_pool, self.detector_3d.focal_length()
+        )
+        if debug_window_was_open:
+            self.debug_window_open()
+
+        self._last_focal_length = self.detector_3d.focal_length()
+        if self.ui_available:
+            # ui was wrapped around old detector, need to re-init for new one
+            self._reinit_ui()
+
+    def _process_focal_length_changes(self):
+        focal_length = self.g_pool.capture.intrinsics.focal_length
+        if focal_length != self._last_focal_length:
+            logger.debug(
+                f"Focal length change detected: {focal_length}."
+                " Re-initializing 3D detector."
+            )
+            # reinitialize detector with same properties but updated focal length
+            properties = self.detector_3d.get_properties()
+            new_detector = Detector3D(properties=properties, focal_length=focal_length)
+            self._initialize(new_detector)
+
+    def detect(self, frame, **kwargs):
+        self._process_focal_length_changes()
+
+        # convert roi-plugin to detector roi
+        roi = Roi(*self.g_pool.roi.bounds)
 
         debug_img = frame.bgr if self.g_pool.display_mode == "algorithm" else None
         result = self.detector_3d.detect(
@@ -68,6 +112,7 @@ class Detector3DPlugin(PupilDetectorPlugin):
             color_img=debug_img,
             roi=roi,
             debug=self.is_debug_window_open,
+            internal_raw_2d_data=kwargs.get("internal_raw_2d_data", None),
         )
 
         eye_id = self.g_pool.eye_id
@@ -75,7 +120,7 @@ class Detector3DPlugin(PupilDetectorPlugin):
         result["norm_pos"] = normalize(
             location, (frame.width, frame.height), flip_y=True
         )
-        result["topic"] = f"pupil.{eye_id}"
+        result["topic"] = f"pupil.{eye_id}.{self.identifier}"
         result["id"] = eye_id
         result["method"] = "3d c++"
         return result
@@ -91,48 +136,17 @@ class Detector3DPlugin(PupilDetectorPlugin):
         return "Pupil Detector 3D"
 
     def init_ui(self):
-        self.add_menu()
+        super().init_ui()
+        self._reinit_ui()
+
+    def _reinit_ui(self):
+        self.menu.elements.clear()
         self.menu.label = self.pretty_class_name
-        info = ui.Info_Text(
-            "Switch to the algorithm display mode to see a visualization of pupil detection parameters overlaid on the eye video. "
-            + "Adjust the pupil intensity range so that the pupil is fully overlaid with blue. "
-            + "Adjust the pupil min and pupil max ranges (red circles) so that the detected pupil size (green circle) is within the bounds."
-        )
-        self.menu.append(info)
         self.menu.append(
-            ui.Slider(
-                "2d.intensity_range",
-                self.proxy,
-                label="Pupil intensity range",
-                min=0,
-                max=60,
-                step=1,
+            ui.Info_Text(
+                "Open the debug window to see a visualization of the 3D pupil detection."
             )
         )
-        self.menu.append(
-            ui.Slider(
-                "2d.pupil_size_min",
-                self.proxy,
-                label="Pupil min",
-                min=1,
-                max=250,
-                step=1,
-            )
-        )
-        self.menu.append(
-            ui.Slider(
-                "2d.pupil_size_max",
-                self.proxy,
-                label="Pupil max",
-                min=50,
-                max=400,
-                step=1,
-            )
-        )
-        info_3d = ui.Info_Text(
-            "Open the debug window to see a visualization of the 3D pupil detection."
-        )
-        self.menu.append(info_3d)
         self.menu.append(ui.Button("Reset 3D model", self.reset_model))
         self.menu.append(ui.Button("Open debug window", self.debug_window_toggle))
         model_sensitivity_slider = ui.Slider(
@@ -154,9 +168,6 @@ class Detector3DPlugin(PupilDetectorPlugin):
         if self._recent_detection_result:
             draw_eyeball_outline(self._recent_detection_result)
             draw_pupil_outline(self._recent_detection_result)
-
-    def deinit_ui(self):
-        self.remove_menu()
 
     def cleanup(self):
         self.debug_window_close()  # if we change detectors, be sure debug window is also closed

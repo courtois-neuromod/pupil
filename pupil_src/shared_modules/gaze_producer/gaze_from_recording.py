@@ -16,12 +16,18 @@ from gaze_producer.gaze_producer_base import GazeProducerBase
 
 
 class GazeFromRecording(GazeProducerBase):
-    pretty_class_name = "Gaze From Recording"
+    @classmethod
+    def plugin_menu_label(cls) -> str:
+        return "Gaze Data From Recording"
+
+    @classmethod
+    def gaze_data_source_selection_order(cls) -> float:
+        return 1.0
 
     def __init__(self, g_pool):
         super().__init__(g_pool)
         self.g_pool.gaze_positions = self._load_gaze_data()
-        self.notify_all({"subject": "gaze_positions_changed"})
+        self._gaze_changed_announcer.announce_existing()
 
     def _load_gaze_data(self):
         gaze = fm.load_pldata_file(self.g_pool.rec_dir, "gaze")
@@ -29,7 +35,4 @@ class GazeFromRecording(GazeProducerBase):
 
     def init_ui(self):
         super().init_ui()
-        self.menu.label = "Gaze Data  From Recording"
-        self.menu.append(
-            ui.Info_Text("Currently, gaze positions are loaded from the recording.")
-        )
+        self.menu.append(ui.Info_Text("Using gaze data recorded by Pupil Capture."))

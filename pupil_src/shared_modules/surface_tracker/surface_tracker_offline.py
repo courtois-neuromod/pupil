@@ -22,9 +22,11 @@ import OpenGL.GL as gl
 import pyglui
 import pyglui.cygl.utils as pyglui_utils
 
+import data_changed
 import file_methods
 import gl_utils
-from plugin import Analysis_Plugin_Base
+from observable import Observable
+from plugin import Plugin
 
 from . import background_tasks, offline_utils
 from .cache import Cache
@@ -49,7 +51,7 @@ else:
     mp_context = multiprocessing.get_context()
 
 
-class Surface_Tracker_Offline(Surface_Tracker, Analysis_Plugin_Base):
+class Surface_Tracker_Offline(Observable, Surface_Tracker, Plugin):
     """
     The Surface_Tracker_Offline does marker based AOI tracking in a recording. All
     marker and surface detections are calculated in the background and cached to reduce
@@ -80,6 +82,13 @@ class Surface_Tracker_Offline(Surface_Tracker, Analysis_Plugin_Base):
 
         self._heatmap_update_requests = set()
         self.export_proxies = set()
+
+        self._gaze_changed_listener = data_changed.Listener(
+            "gaze_positions", g_pool.rec_dir, plugin=self
+        )
+        self._gaze_changed_listener.add_observer(
+            "on_data_changed", self._on_gaze_positions_changed
+        )
 
     @property
     def Surface_Class(self):
@@ -330,7 +339,13 @@ class Surface_Tracker_Offline(Surface_Tracker, Analysis_Plugin_Base):
         for surface in self._heatmap_update_requests:
             surf_idx = self.surfaces.index(surface)
             gaze_on_surf = self.gaze_on_surf_buffer[surf_idx]
-            gaze_on_surf = list(itertools.chain.from_iterable(gaze_on_surf))
+            gaze_on_surf = itertools.chain.from_iterable(gaze_on_surf)
+            gaze_on_surf = (
+                g
+                for g in gaze_on_surf
+                if g["confidence"] >= self.g_pool.min_data_confidence
+            )
+            gaze_on_surf = list(gaze_on_surf)
             surface.update_heatmap(gaze_on_surf)
 
         self._heatmap_update_requests.clear()
@@ -513,17 +528,17 @@ class Surface_Tracker_Offline(Surface_Tracker, Analysis_Plugin_Base):
             )
             self.export_proxies.add(proxy)
 
-        elif notification["subject"] == "gaze_positions_changed":
-            for surface in self.surfaces:
-                self._heatmap_update_requests.add(surface)
-                surface.within_surface_heatmap = surface.get_placeholder_heatmap()
-            self._fill_gaze_on_surf_buffer()
-
         elif (
             notification["subject"]
             == "surface_tracker_offline._should_fill_gaze_on_surf_buffer"
         ):
             self._fill_gaze_on_surf_buffer()
+
+    def _on_gaze_positions_changed(self):
+        for surface in self.surfaces:
+            self._heatmap_update_requests.add(surface)
+            surface.within_surface_heatmap = surface.get_placeholder_heatmap()
+        self._fill_gaze_on_surf_buffer()
 
     def on_surface_change(self, surface):
         self.save_surface_definitions_to_file()
@@ -548,7 +563,7 @@ class Surface_Tracker_Offline(Surface_Tracker, Analysis_Plugin_Base):
         super().cleanup()
         self._save_marker_cache()
 
-        for proxy in self.export_proxies:
+        for proxy in self.export_proxies.copy():
             proxy.cancel()
             self.export_proxies.remove(proxy)
 

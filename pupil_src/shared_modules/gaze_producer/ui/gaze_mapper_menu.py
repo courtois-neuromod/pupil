@@ -42,8 +42,10 @@ class GazeMapperMenu(plugin_ui.StorageEditMenu):
         gaze_mapper_controller.add_observer(
             "on_gaze_mapping_calculated", self._on_gaze_mapping_calculated
         )
-        gaze_mapper_controller.add_observer("on_calculation_could_not_be_started",
-                                            self._on_calculation_could_not_be_started)
+        gaze_mapper_controller.add_observer(
+            "on_calculation_could_not_be_started",
+            self._on_calculation_could_not_be_started,
+        )
 
     def _item_label(self, gaze_mapper):
         return gaze_mapper.name
@@ -78,7 +80,7 @@ class GazeMapperMenu(plugin_ui.StorageEditMenu):
 
     def _create_calculate_button(self, gaze_mapper):
         return ui.Button(
-            label="Recalculate" if gaze_mapper.calculate_complete else "Calculate",
+            label="Calculate" if gaze_mapper.empty() else "Recalculate",
             function=self._on_click_calculate,
         )
 
@@ -93,12 +95,18 @@ class GazeMapperMenu(plugin_ui.StorageEditMenu):
             labels.append("[Invalid Calibration]")
             selection.append(gaze_mapper.calibration_unique_id)
 
+        def calibration_setter(calibration_unique_id):
+            self._gaze_mapper_controller.set_calibration_unique_id(
+                gaze_mapper, calibration_unique_id
+            )
+
         return ui.Selector(
             "calibration_unique_id",
             gaze_mapper,
             label="Calibration",
             selection=selection,
             labels=labels,
+            setter=calibration_setter,
         )
 
     def _create_mapping_range_selector(self, gaze_mapper):
