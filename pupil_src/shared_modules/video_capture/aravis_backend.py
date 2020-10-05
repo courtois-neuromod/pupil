@@ -556,7 +556,7 @@ class Aravis_Manager(Base_Manager):
 
     def __init__(self, g_pool):
         super().__init__(g_pool)
-
+        print(self.gui_name)
         self.devices = []
 
     def get_init_dict(self):
@@ -590,6 +590,21 @@ class Aravis_Manager(Base_Manager):
             )
         )
         self.menu.extend(ui_elements)
+
+    def get_cameras(self):
+        Aravis.update_device_list()
+        n = Aravis.get_n_devices()
+        self.devices = [Aravis.get_device_id(i) for i in range(0, n)]
+
+        print(self.devices)
+        return [
+            SourceInfo(
+                label=f"{device['name']} @ Local USB",
+                manager=self,
+                key=f"cam.{device['uid']}",
+            )
+            for device in self.devices
+        ]
 
     def activate(self, source_uid):
         if not source_uid:
@@ -625,12 +640,5 @@ class Aravis_Manager(Base_Manager):
                 }
             )
 
-
-    def deinit_ui(self):
-        self.remove_menu()
-
     def cleanup(self):
         self.devices = None
-
-    def recent_events(self, events):
-        pass
