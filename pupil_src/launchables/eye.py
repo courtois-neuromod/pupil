@@ -226,6 +226,7 @@ def eye(
             (default_2d.__name__, {}),
             (default_3d.__name__, {}),
             ("NDSI_Manager", {}),
+            ("Aravis_Manager", {}),
             ("HMD_Streaming_Manager", {}),
             ("File_Manager", {}),
             ("PupilDetectorManager", {}),
@@ -499,6 +500,7 @@ def eye(
         g_pool.iconbar.append(icon)
 
         plugins_to_load = session_settings.get("loaded_plugins", default_plugins)
+        print(plugins_to_load)
         if overwrite_cap_settings:
             # Ensure that overwrite_cap_settings takes preference over source plugins
             # with incorrect settings that were loaded from session settings.

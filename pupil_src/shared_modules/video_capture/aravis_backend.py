@@ -13,7 +13,7 @@ import time
 import logging
 import numpy as np
 import ctypes
-from .base_backend import InitialisationError, Base_Source, Base_Manager
+from .base_backend import InitialisationError, Base_Source, Base_Manager, SourceInfo
 from camera_models import Camera_Model
 from .utils import Check_Frame_Stripes, Exposure_Time
 
@@ -73,10 +73,12 @@ class Aravis_Source(Base_Source):
         name=None,
         uid=None,
         exposure_mode="manual",
-        nbuffers=1000
+        nbuffers=1000,
+        *args,
+        **kwargs,
     ):
 
-        super().__init__(g_pool)
+        super().__init__(g_pool, *args, **kwargs)
         self.cam = None
         self._restart_in = 3
         self._status = False
@@ -245,6 +247,7 @@ class Aravis_Source(Base_Source):
         ptr = ctypes.cast(addr, INTP)
         im = np.ctypeslib.as_array(ptr, (buf.get_image_height(), buf.get_image_width()))
         im = im.copy()
+        print(im.shape)
         return im
 
     def recent_events(self, events):
@@ -312,7 +315,7 @@ class Aravis_Source(Base_Source):
             )
         self.frame_size_backup = size
 
-        self._intrinsics = load_intrinsics(
+        self._intrinsics = Camera_Model.from_file(
             self.g_pool.user_dir, self.name, self.frame_size
         )
 
@@ -556,40 +559,10 @@ class Aravis_Manager(Base_Manager):
 
     def __init__(self, g_pool):
         super().__init__(g_pool)
-        print(self.gui_name)
         self.devices = []
 
     def get_init_dict(self):
         return {}
-
-    def init_ui(self):
-        self.add_menu()
-
-        from pyglui import ui
-
-        self.add_auto_select_button()
-        ui_elements = []
-        ui_elements.append(ui.Info_Text("Aravis sources"))
-
-        def dev_selection_list():
-            Aravis.update_device_list()
-            n = Aravis.get_n_devices()
-            self.devices = [Aravis.get_device_id(i) for i in range(0, n)]
-
-            default = (None, "Select to activate")
-            dev_pairs = [default] + [(dev,dev) for dev in self.devices]
-            return zip(*dev_pairs)
-
-        ui_elements.append(
-            ui.Selector(
-                "selected_source",
-                selection_getter=dev_selection_list,
-                getter=lambda: None,
-                setter=self.activate,
-                label="Activate source",
-            )
-        )
-        self.menu.extend(ui_elements)
 
     def get_cameras(self):
         Aravis.update_device_list()
@@ -599,18 +572,19 @@ class Aravis_Manager(Base_Manager):
         print(self.devices)
         return [
             SourceInfo(
-                label=f"{device['name']} @ Local USB",
+                label=f"{device} @ Aravis",
                 manager=self,
-                key=f"cam.{device['uid']}",
+                key=f"cam.{device}",
             )
             for device in self.devices
         ]
 
-    def activate(self, source_uid):
-        if not source_uid:
+    def activate(self, key):
+        if not key:
             return
 
         try:
+            source_uid = key[4:]
             if source_uid not in self.devices:
                 logger.error("The selected camera is not available.")
                 return
