@@ -352,7 +352,7 @@ class Aravis_Source(Base_Source):
         elif ntype == "Boolean":
             return self.dev.set_integer_feature_value(name, int(val))
         else:
-            logger.warning("Feature type not implemented: %s", ntype)
+            logger.warning("Feature type not implemented: %s"%ntype)
 
         """
         # the set_feature function in python-aravis doesn't work
