@@ -338,7 +338,9 @@ class Aravis_Source(Base_Source):
         return node.get_node_name()
 
     def set_feature(self, name, val):
-
+        if val is None:
+            logger.error('cannot set None value')
+            return
         ntype = self.get_feature_type(name)
         if ntype in ("String", "Enumeration", "StringReg"):
             return self.dev.set_string_feature_value(name, val)
