@@ -118,7 +118,7 @@ class Aravis_Source(Base_Source):
             self.set_feature('GevSCPSPacketSize', 1500)
             #self.set_feature('PixelMappingFormat', 'LowBits')
             self.timestamp_freq = self.get_feature('GevTimestampTickFrequency')
-            logger.info('timestamp_freq=%f %s'%(self.timestamp_freq, self.timestamp_freq.__class__))
+            logger.info(f"timestamp_freq=self.timestamp_freq")
             self.current_frame_idx = 0
 
             self.exposure_time = exposure_time
@@ -247,7 +247,6 @@ class Aravis_Source(Base_Source):
         ptr = ctypes.cast(addr, INTP)
         im = np.ctypeslib.as_array(ptr, (buf.get_image_height(), buf.get_image_width()))
         im = im.copy()
-        print(im.shape)
         return im
 
     def recent_events(self, events):
@@ -404,13 +403,16 @@ class Aravis_Source(Base_Source):
     @property
     def global_gain(self):
         if self.cam:
-            return int(self.get_feature('GlobalGain'))
+            gg = self.get_feature('GlobalGain')
+            if gg:
+                return int(gg)
         else:
             return self.global_gain_backup
 
     @global_gain.setter
     def global_gain(self, new_gain):
-        gain = self.set_feature('GlobalGain', int(new_gain))
+        if new_gain and self.cam:
+            gain = self.set_feature('GlobalGain', int(new_gain))
 
     @property
     def exposure_time(self):
@@ -484,44 +486,47 @@ class Aravis_Source(Base_Source):
                     slider_name.lower(),
                     self,
                     min=20,
-                    max=self.get_feature(slider_name+'Max'),
+                    max=self.get_feature(slider_name+'Max') or 640,
                     step = 1,
                     label=slider_name,
                     )
                 )
 
-        sensor_control.append(
-            ui.Slider(
-                "frame_rate",
-                self,
-                min=10,
-                max=1077,
-                step=8,
-                label="Frame rate",
+        if self.frame_rate:
+            sensor_control.append(
+                ui.Slider(
+                    "frame_rate",
+                    self,
+                    min=10,
+                    max=1077,
+                    step=8,
+                    label="Frame rate",
+                )
             )
-        )
 
-        sensor_control.append(
-            ui.Slider(
-                "exposure_time",
-                self,
-                min=8,
-                max=33980,
-                step=8,
-                label="Exposure Time",
+        if self.exposure_time:
+            sensor_control.append(
+                ui.Slider(
+                    "exposure_time",
+                    self,
+                    min=8,
+                    max=33980,
+                    step=8,
+                    label="Exposure Time",
+                )
             )
-        )
 
-        sensor_control.append(
-            ui.Slider(
-                "global_gain",
-                self,
-                min=0,
-                max=16,
-                step=1,
-                label="Global gain",
+        if self.global_gain:
+            sensor_control.append(
+                ui.Slider(
+                    "global_gain",
+                    self,
+                    min=0,
+                    max=16,
+                    step=1,
+                    label="Global gain",
+                )
             )
-        )
 
         ui_elements.append(sensor_control)
 
