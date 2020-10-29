@@ -17,6 +17,9 @@
  * Details explaining the Python-C API can be found under
  * 'Extending and Embedding' and 'Python/C API' at
  * docs.python.org .
+ *
+ * BUILD with `python setup.py build_ext --inplace`
+ *
  */
 
 static PyMethodDef MathMethods[] = {
