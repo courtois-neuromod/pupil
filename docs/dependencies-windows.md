@@ -68,6 +68,7 @@ pip install pyopengl
 pip install pyzmq
 pip install scikit-learn
 pip install scipy
+pip install glfw
 pip install win_inet_pton
 pip install git+https://github.com/zeromq/pyre
 
@@ -121,16 +122,10 @@ The following steps require you to store dynamic libraries in the `pupil_externa
 - Unzip GLEW in your work dir
 - Copy `glew32.dll` to `pupil_external`
 
-#### GLFW
-
-- Download GLFW Windows binaries from [glfw.org](http://www.glfw.org/download.html)
-- Unzip GLFW to your work dir
-- Copy `glfw3.dll` from `lib-vc2015` to `pupil_external`
-
 #### FFMPEG
 
-- Download FFMPEG v4.0 Windows shared binaries from [ffmpeg](http://ffmpeg.zeranoe.com/builds/)
-- Unzip ffmpeg-shared to your work dir
+- [Download FFMPEG v4.0 Windows **shared** binaries](https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2020-10-12-12-31/ffmpeg-n4.3.1-20-g8a2acdc6da-win64-lgpl-shared-4.3.zip)
+- Unzip `ffmpeg-*-shared-4.3.zip` to your work dir
 - Copy the following 8 `.dll` files to `pupil_external`
     - `avcodec-58.dll`
     - `avdevice-58.dll`
