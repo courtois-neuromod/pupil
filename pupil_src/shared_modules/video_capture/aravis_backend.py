@@ -118,7 +118,7 @@ class Aravis_Source(Base_Source):
             self.set_feature('GevSCPSPacketSize', 1500)
             #self.set_feature('PixelMappingFormat', 'LowBits')
             self.timestamp_freq = self.get_feature('GevTimestampTickFrequency')
-            logger.info(f"timestamp_freq=self.timestamp_freq")
+            logger.info(f"timestamp_freq={self.timestamp_freq}")
             self.current_frame_idx = 0
 
             self.exposure_time = exposure_time
@@ -155,10 +155,10 @@ class Aravis_Source(Base_Source):
 
     def _start_capture(self):
         # set exposure to the minimum, should work in semi-dark environment
-        #self.exposure_time_backup = self.exposure_time
-        #self.exposure_time = 0
+        self.exposure_time_backup = self.exposure_time
+        self.exposure_time = 0
 
-        #self._set_dark_image = True
+        self._set_dark_image = True
 
         # The camera is gigevision1.2, which doesn't support PTP apparently
         # maybe this is overkill for fMRI sampling rate
@@ -174,9 +174,14 @@ class Aravis_Source(Base_Source):
         while buf is None:
             buf = self.stream.try_pop_buffer()
         self.timestamp_offset -= buf.get_timestamp()*1e-9
-        logger.info('first frame at %f %f %f'%(buf.get_timestamp(), self.timestamp_offset, self.g_pool.get_timestamp()))
+        logger.info(
+            'first frame at %f %f %f %f'%(
+                buf.get_timestamp()*1e-9,
+                buf.get_system_timestamp()*1e-9,
+                self.timestamp_offset,
+                self.g_pool.get_timestamp()))
 
-        #self.exposure_time = self.exposure_time_backup
+        self.exposure_time = self.exposure_time_backup
         self._status = True
         logger.info('started capture successfully')
 
@@ -202,14 +207,16 @@ class Aravis_Source(Base_Source):
     def get_frame(self):
         buf = self.stream.try_pop_buffer()
         #print(self.stream.get_n_buffers())
-        if buf and buf.get_status() == Aravis.BufferStatus.SUCCESS:
-            data = self._array_from_buffer_address(buf)
+        if buf:
+            buffer_status = buf.get_status()
+            if buffer_status == Aravis.BufferStatus.SUCCESS:
+                data = self._array_from_buffer_address(buf)
+                ts = buf.get_timestamp()
+            else:
+                logger.warning('Buffer STATUS: %s'%buf.get_status().value_nick)
+                return None
             self.stream.push_buffer(buf)
-            ts = buf.get_timestamp()
         else:
-            if buf:
-                logger.warning('WRONG buffer STATUS %d'%buf.get_status())
-                self.stream.push_buffer(buf)
             return None
 
         index = self.current_frame_idx
@@ -246,12 +253,12 @@ class Aravis_Source(Base_Source):
         addr = buf.get_data()
         ptr = ctypes.cast(addr, INTP)
         im = np.ctypeslib.as_array(ptr, (buf.get_image_height(), buf.get_image_width()))
-        im = im.copy()
+        im =  np.flip(im, (0,1)).copy(order='C')
         return im
 
     def recent_events(self, events):
         if (self.cam is None) or (not self._status):
-            time.sleep(0.0005) # half the max frame rate of the camera
+            time.sleep(0.0001) # 10th the max frame rate of the camera
             return
         frame = self.get_frame()
         if frame is None:
