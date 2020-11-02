@@ -19,6 +19,8 @@ from .utils import Check_Frame_Stripes, Exposure_Time
 
 from ._npufunc import subtract_nowrap
 
+import gi
+gi.require_version('Aravis', '0.8')
 from gi.repository import Aravis
 
 # logging
@@ -114,7 +116,7 @@ class Aravis_Source(Base_Source):
                 raise RuntimeError("Error creating stream")
             self.payload = 0
 
-            self.stream.set_property('packet_timeout',100000)
+            self.stream.set_property('packet_timeout', 100000)
             self.set_feature('GevSCPSPacketSize', 1500)
             #self.set_feature('PixelMappingFormat', 'LowBits')
             self.timestamp_freq = self.get_feature('GevTimestampTickFrequency')
@@ -154,26 +156,43 @@ class Aravis_Source(Base_Source):
             self.stream.push_buffer(Aravis.Buffer.new_allocate(payload))
 
     def _start_capture(self):
+        self.create_buffers()
+
         # set exposure to the minimum, should work in semi-dark environment
         self.exposure_time_backup = self.exposure_time
         self.exposure_time = 0
-
         self._set_dark_image = True
 
         # The camera is gigevision1.2, which doesn't support PTP apparently
         # maybe this is overkill for fMRI sampling rate
-        #os_time = time.time()
-        #latch_res = self.dev.execute_command('GevTimestampControlLatch')
-        #camera_ts = self.get_feature('GevTimestampValue')
-        #logger.info((os_time, latch_res, camera_ts))
+        try:
+            self.timestamp_offset = None
+            camera_os_time_diffs = []
+            for i in range(100):
+                os_time = time.time()
+                latch_res = self.dev.execute_command('GevTimestampControlLatch')
+                camera_ts = self.get_feature('GevTimestampValue')
+                camera_os_time_diffs.append(camera_ts-os_time)
+                logger.debug(f"{latch_res} {camera_ts} - {os_time} = {camera_ts-os_time}")
+            self.timestamp_offset = np.mean(camera_os_time_diffs)
+            logger.info("Camera-OS time diff: mean=%f std=%f"%(
+                self.timestamp_offset,
+                np.std(camera_os_time_diffs)))
 
-        self.create_buffers()
+        except Exception as err:
+            camera_os_time_diffs = []
+            latch_res = None
+            camera_ts = None
+
         self.cam.start_acquisition()
         buf = None
-        self.timestamp_offset = self.g_pool.get_timestamp()
+        # self.timestamp_offset = self.g_pool.get_timestamp()
         while buf is None:
+            first_buf_os_time = time.time() # get approximate time of the first buffer
             buf = self.stream.try_pop_buffer()
-        self.timestamp_offset -= buf.get_timestamp()*1e-9
+
+        if self.timestamp_offset is None:
+            self.timestamp_offset = first_buf_os_time - buf.get_timestamp()*1e-9
         logger.info(
             'first frame at %f %f %f %f'%(
                 buf.get_timestamp()*1e-9,
@@ -208,12 +227,15 @@ class Aravis_Source(Base_Source):
         buf = self.stream.try_pop_buffer()
         #print(self.stream.get_n_buffers())
         if buf:
+            payload_type = buf.get_payload_type()
+            if payload_type != Aravis.BufferPayloadType.IMAGE:
+                logger.warning("Buffer with payload of type %s"%payload_type.value_nick)
             buffer_status = buf.get_status()
             if buffer_status == Aravis.BufferStatus.SUCCESS:
                 data = self._array_from_buffer_address(buf)
                 ts = buf.get_timestamp()
             else:
-                logger.warning('Buffer STATUS: %s'%buf.get_status().value_nick)
+                logger.warning('Buffer STATUS: %s'%buffer_status.value_nick)
                 return None
             self.stream.push_buffer(buf)
         else:
