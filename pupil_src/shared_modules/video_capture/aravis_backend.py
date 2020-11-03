@@ -171,7 +171,7 @@ class Aravis_Source(Base_Source):
             for i in range(100):
                 os_time = time.time()
                 latch_res = self.dev.execute_command('GevTimestampControlLatch')
-                camera_ts = self.get_feature('GevTimestampValue')
+                camera_ts = self.get_feature('GevTimestampValue')/self.timestamp_freq
                 camera_os_time_diffs.append(camera_ts-os_time)
                 logger.debug(f"{latch_res} {camera_ts} - {os_time} = {camera_ts-os_time}")
             self.timestamp_offset = np.mean(camera_os_time_diffs)
@@ -190,9 +190,13 @@ class Aravis_Source(Base_Source):
         while buf is None:
             first_buf_os_time = time.time() # get approximate time of the first buffer
             buf = self.stream.try_pop_buffer()
+            if buf is None:
+                self.stream.push_buffer(buf)
 
         if self.timestamp_offset is None:
             self.timestamp_offset = first_buf_os_time - buf.get_timestamp()*1e-9
+        self.stream.push_buffer(buf)
+
         logger.info(
             'first frame at %f %f %f %f'%(
                 buf.get_timestamp()*1e-9,
