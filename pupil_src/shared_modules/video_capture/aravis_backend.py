@@ -190,8 +190,6 @@ class Aravis_Source(Base_Source):
         while buf is None:
             first_buf_os_time = time.time() # get approximate time of the first buffer
             buf = self.stream.try_pop_buffer()
-            if buf is None:
-                self.stream.push_buffer(buf)
 
         if self.timestamp_offset is None:
             self.timestamp_offset = first_buf_os_time - buf.get_timestamp()*1e-9
