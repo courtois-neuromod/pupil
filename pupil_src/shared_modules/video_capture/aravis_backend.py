@@ -119,8 +119,6 @@ class Aravis_Source(Base_Source):
             self.stream.set_property('packet_timeout', 100000)
             self.set_feature('GevSCPSPacketSize', 1500)
             #self.set_feature('PixelMappingFormat', 'LowBits')
-            self.timestamp_freq = self.get_feature('GevTimestampTickFrequency')
-            logger.info(f"timestamp_freq={self.timestamp_freq}")
             self.current_frame_idx = 0
 
             self.exposure_time = exposure_time
@@ -128,7 +126,35 @@ class Aravis_Source(Base_Source):
             self.frame_size = frame_size
             self.frame_rate = frame_rate
 
-            self._start_capture()
+
+            # The camera is gigevision1.2, which doesn't support PTP apparently
+            # maybe this is overkill for fMRI sampling rate
+            # we perform a number of timestampLatch to get an approximate time sync
+            try:
+
+                self.timestamp_freq = self.get_feature('GevTimestampTickFrequency')
+                logger.info(f"timestamp_freq={self.timestamp_freq}")
+                self.timestamp_offset = None
+                camera_os_time_diffs = []
+                for i in range(100):
+                    os_time = time.time()
+                    latch_res = self.dev.execute_command('GevTimestampControlLatch')
+                    camera_ts = self.get_feature('GevTimestampValue')/self.timestamp_freq
+                    camera_os_time_diffs.append(os_time-camera_ts)
+                    logger.debug(f"{latch_res} {os_time} - {camera_ts} = {os_time-camera_ts}")
+                self.timestamp_offset = np.mean(camera_os_time_diffs)
+                logger.info(
+                    "OS-Camera time diff: mean=%f std=%f"%(
+                    self.timestamp_offset,
+                    np.std(camera_os_time_diffs))
+                    )
+
+            except Exception as err:
+                camera_os_time_diffs = []
+                latch_res = None
+                camera_ts = None
+
+            #self._start_capture()
         else:
             self._intrinsics = Camera_Model.from_file(
                 self.g_pool.user_dir, self.name, self.frame_size
@@ -163,35 +189,14 @@ class Aravis_Source(Base_Source):
         self.exposure_time = 0
         self._set_dark_image = True
 
-        # The camera is gigevision1.2, which doesn't support PTP apparently
-        # maybe this is overkill for fMRI sampling rate
-        try:
-            self.timestamp_offset = None
-            camera_os_time_diffs = []
-            for i in range(100):
-                os_time = time.time()
-                latch_res = self.dev.execute_command('GevTimestampControlLatch')
-                camera_ts = self.get_feature('GevTimestampValue')/self.timestamp_freq
-                camera_os_time_diffs.append(camera_ts-os_time)
-                logger.debug(f"{latch_res} {camera_ts} - {os_time} = {camera_ts-os_time}")
-            self.timestamp_offset = np.mean(camera_os_time_diffs)
-            logger.info("Camera-OS time diff: mean=%f std=%f"%(
-                self.timestamp_offset,
-                np.std(camera_os_time_diffs)))
-
-        except Exception as err:
-            camera_os_time_diffs = []
-            latch_res = None
-            camera_ts = None
-
         self.cam.start_acquisition()
         buf = None
-        # self.timestamp_offset = self.g_pool.get_timestamp()
         while buf is None:
             first_buf_os_time = time.time() # get approximate time of the first buffer
             buf = self.stream.try_pop_buffer()
 
         if self.timestamp_offset is None:
+            # get an approximate time difference if camera does not support timestamplatch
             self.timestamp_offset = first_buf_os_time - buf.get_timestamp()*1e-9
         self.stream.push_buffer(buf)
 
@@ -277,8 +282,8 @@ class Aravis_Source(Base_Source):
         addr = buf.get_data()
         ptr = ctypes.cast(addr, INTP)
         im = np.ctypeslib.as_array(ptr, (buf.get_image_height(), buf.get_image_width()))
-        im =  np.flip(im, (0,1)).copy(order='C')
-        return im
+        #im =  np.flip(im, (0,1)).copy(order='C')
+        return im.copy()
 
     def recent_events(self, events):
         if (self.cam is None) or (not self._status):
@@ -324,6 +329,9 @@ class Aravis_Source(Base_Source):
     def frame_size(self, new_size):
         if new_size == self.frame_size:
             return
+        status_back = self._status
+        if status_back:
+            self._stop_capture()
         self.set_feature('Height', new_size[1])
         self.set_feature('Width', new_size[0])
         # we set the real size that the system accepted
@@ -348,8 +356,9 @@ class Aravis_Source(Base_Source):
         self._intrinsics = Camera_Model.from_file(
             self.g_pool.user_dir, self.name, self.frame_size
         )
-
         self.dark_image = None
+        if status_back:
+            self._start_capture()
 
     @height.setter
     def height(self, new_height):
