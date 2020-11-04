@@ -10,21 +10,24 @@ See COPYING and COPYING.LESSER for license details.
 """
 
 from player_methods import transparent_image_overlay
-from plugin import Visualizer_Plugin_Base
+from plugin import Plugin
 import numpy as np
 import cv2
 from glob import glob
 import os
 from pyglui import ui
 
-from glfw import glfwGetCursorPos, glfwGetWindowSize, glfwGetCurrentContext
+import glfw
+
+glfw.ERROR_REPORTING = "raise"
+
 from methods import normalize, denormalize
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class Vis_Watermark(Visualizer_Plugin_Base):
+class Vis_Watermark(Plugin):
     uniqueness = "not_unique"
     icon_chr = chr(0xEC04)
     icon_font = "pupil_icons"
@@ -35,7 +38,7 @@ class Vis_Watermark(Visualizer_Plugin_Base):
         self.menu = None
 
         available_files = glob(
-            os.path.join(self.g_pool.user_dir, "*png")
+            os.path.join(self.g_pool.user_dir, "[!.]*png")
         )  # we only look for png's
         self.available_files = [
             f for f in available_files if cv2.imread(f, -1).shape[2] == 4
@@ -80,8 +83,8 @@ class Vis_Watermark(Visualizer_Plugin_Base):
         if not frame:
             return
         if self.drag_offset is not None:
-            pos = glfwGetCursorPos(glfwGetCurrentContext())
-            pos = normalize(pos, glfwGetWindowSize(glfwGetCurrentContext()))
+            pos = glfw.get_cursor_pos(glfw.get_current_context())
+            pos = normalize(pos, glfw.get_window_size(glfw.get_current_context()))
             pos = denormalize(
                 pos, (frame.img.shape[1], frame.img.shape[0])
             )  # Position in img pixels

@@ -14,8 +14,10 @@ import logging
 import ndsi
 from pyglui import ui
 
+import os_utils
 from plugin import Plugin
 
+os_utils.patch_pyre_zhelper_cdll()
 logger = logging.getLogger(__name__)
 
 # Suppress pyre debug logs (except beacon)
@@ -74,8 +76,7 @@ class Remote_Recorder_Core:
 
         self._attached_rec_states = {}
         self._network = ndsi.Network(
-            formats={ndsi.DataFormat.V3},
-            callbacks=(self.on_event,)
+            formats={ndsi.DataFormat.V3}, callbacks=(self.on_event,)
         )
         self._network.start()
 

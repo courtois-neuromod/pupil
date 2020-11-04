@@ -1,45 +1,34 @@
 # -*- mode: python -*-
 
 
-import platform, sys, os, os.path, numpy, glob, pathlib
+import glob
+import os
+import os.path
+import pathlib
+import platform
+import sys
 
-av_hidden_imports = [
-    "av.format",
-    "av.packet",
-    "av.buffer",
-    "av.bytesource",
-    "av.frame",
-    "av.stream",
-    "av.descriptor",
-    "av.plane",
-    "av.audio.plane",
-    "av.container.streams",
-    "av.dictionary",
-    "av.audio.stream",
-    "av.subtitles",
-    "av.subtitles.stream",
-    "av.subtitles.subtitle",
-    "av.video.reformatter",
-    "av.video.plane",
-    "av.option",
-    "av.container.pyio",
-    "av.video.codeccontext",
-    "av.audio.codeccontext",
-    "av.filter.context",
-    "av.filter.link",
-    "av.filter.pad",
-    "av.buffered_decoder",
-]
+import numpy
+import pkg_resources
+from PyInstaller.utils.hooks import collect_submodules
+
+hidden_imports = []
+hidden_imports += collect_submodules("av")
+
 if platform.system() != "Windows":
-    av_hidden_imports.append("cysignals")
+    hidden_imports.append("cysignals")
 
-pyglui_hidden_imports = [
-    "pyglui.pyfontstash.fontstash",
-    "pyglui.cygl.shader",
-    "pyglui.cygl.utils",
-]
+hidden_imports += collect_submodules("pyglui")
+hidden_imports += collect_submodules("sklearn")
 
+import glfw
 from pyglui import ui
+
+glfw_name = glfw._glfw._name
+glfw_path = pathlib.Path(glfw_name)
+if not glfw_path.exists():
+    glfw_path = pathlib.Path(pkg_resources.resource_filename("glfw", glfw_name))
+glfw_binaries = [(glfw_path.name, str(glfw_path), "BINARY")]
 
 if platform.system() == "Darwin":
     sys.path.append(".")
@@ -50,7 +39,7 @@ if platform.system() == "Darwin":
     a = Analysis(
         ["../../pupil_src/main.py"],
         pathex=["../../pupil_src/shared_modules/"],
-        hiddenimports=[] + av_hidden_imports + pyglui_hidden_imports,
+        hiddenimports=hidden_imports,
         hookspath=None,
         runtime_hooks=None,
         excludes=["matplotlib"],
@@ -74,10 +63,10 @@ if platform.system() == "Darwin":
         a.binaries - libSystem,
         a.zipfiles,
         a.datas,
-        [("libglfw.dylib", "/usr/local/lib/libglfw.dylib", "BINARY")],
         [("pyglui/OpenSans-Regular.ttf", ui.get_opensans_font_path(), "DATA")],
         [("pyglui/Roboto-Regular.ttf", ui.get_roboto_font_path(), "DATA")],
         [("pyglui/pupil_icons.ttf", ui.get_pupil_icons_font_path(), "DATA")],
+        glfw_binaries,
         strip=None,
         upx=True,
         name="Pupil Service",
@@ -96,7 +85,7 @@ elif platform.system() == "Linux":
     a = Analysis(
         ["../../pupil_src/main.py"],
         pathex=["../../pupil_src/shared_modules/"],
-        hiddenimports=[] + av_hidden_imports + pyglui_hidden_imports,
+        hiddenimports=hidden_imports,
         hookspath=None,
         runtime_hooks=None,
         excludes=["matplotlib"],
@@ -131,18 +120,20 @@ elif platform.system() == "Linux":
         binaries,
         a.zipfiles,
         a.datas,
-        [("libglfw.so", "/usr/local/lib/libglfw.so", "BINARY")],
         [("libGLEW.so", "/usr/lib/x86_64-linux-gnu/libGLEW.so", "BINARY")],
         [("pyglui/OpenSans-Regular.ttf", ui.get_opensans_font_path(), "DATA")],
         [("pyglui/Roboto-Regular.ttf", ui.get_roboto_font_path(), "DATA")],
         [("pyglui/pupil_icons.ttf", ui.get_pupil_icons_font_path(), "DATA")],
+        glfw_binaries,
         strip=True,
         upx=True,
         name="pupil_service",
     )
 
 elif platform.system() == "Windows":
-    import sys, os, os.path
+    import os
+    import os.path
+    import sys
 
     np_path = os.path.dirname(numpy.__file__)
     np_dlls = glob.glob(np_path + "/core/*.dll")
@@ -152,22 +143,7 @@ elif platform.system() == "Windows":
         dll_p, dll_f = os.path.split(dll_path)
         np_dll_list += [(dll_f, dll_path, "BINARY")]
 
-    scipy_imports = ["scipy.integrate"]
-    scipy_imports += [
-        "scipy.integrate._ode",
-        "scipy.integrate.quadrature",
-        "scipy.integrate.odepack",
-        "scipy.integrate._odepack",
-        "scipy.integrate.quadpack",
-        "scipy.integrate._quadpack",
-    ]
-    scipy_imports += [
-        "scipy.integrate.vode",
-        "scipy.integrate.lsoda",
-        "scipy.integrate._dop",
-        "scipy.special._ufuncs",
-        "scipy.special._ufuncs_cxx",
-    ]
+    hidden_imports += collect_submodules("scipy")
 
     external_libs_path = pathlib.Path("../../pupil_external")
 
@@ -176,7 +152,7 @@ elif platform.system() == "Windows":
         pathex=["../../pupil_src/shared_modules/", str(external_libs_path)],
         binaries=None,
         datas=None,
-        hiddenimports=pyglui_hidden_imports + scipy_imports + av_hidden_imports,
+        hiddenimports=hidden_imports,
         hookspath=None,
         runtime_hooks=None,
         win_no_prefer_redirects=False,
@@ -200,8 +176,7 @@ elif platform.system() == "Windows":
 
     vc_redist_path = external_libs_path / "vc_redist"
     vc_redist_libs = [
-        (lib.name, str(lib), "BINARY")
-        for lib in vc_redist_path.glob("*.dll")
+        (lib.name, str(lib), "BINARY") for lib in vc_redist_path.glob("*.dll")
     ]
 
     coll = COLLECT(
@@ -210,14 +185,13 @@ elif platform.system() == "Windows":
         a.zipfiles,
         a.datas,
         [("PupilDrvInst.exe", "../../pupil_external/PupilDrvInst.exe", "BINARY")],
-        [("glfw3.dll", "../../pupil_external/glfw3.dll", "BINARY")],
         [("pyglui/OpenSans-Regular.ttf", ui.get_opensans_font_path(), "DATA")],
         [("pyglui/Roboto-Regular.ttf", ui.get_roboto_font_path(), "DATA")],
         [("pyglui/pupil_icons.ttf", ui.get_pupil_icons_font_path(), "DATA")],
+        glfw_binaries,
         np_dll_list,
         vc_redist_libs,
         strip=False,
         upx=True,
         name="Pupil Service",
     )
-

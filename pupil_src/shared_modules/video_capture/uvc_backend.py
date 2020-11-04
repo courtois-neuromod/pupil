@@ -13,21 +13,24 @@ import enum
 import logging
 import platform
 import re
+import sys
+import tempfile
 import time
+from pathlib import Path
 
 import numpy as np
 from pyglui import cygl, ui
 
 import gl_utils
 import uvc
-from camera_models import load_intrinsics
-from version_utils import VersionFormat
+from camera_models import Camera_Model
+from version_utils import parse_version
 
 from .base_backend import Base_Manager, Base_Source, InitialisationError, SourceInfo
 from .utils import Check_Frame_Stripes, Exposure_Time
 
 # check versions for our own depedencies as they are fast-changing
-assert VersionFormat(uvc.__version__) >= VersionFormat("0.13")
+assert parse_version(uvc.__version__) >= parse_version("0.13")
 
 # logging
 logger = logging.getLogger(__name__)
@@ -108,16 +111,16 @@ class UVC_Source(Base_Source):
                         uid_for_name = devices_by_name[d_name]["uid"]
                         try:
                             self.uvc_capture = uvc.Capture(uid_for_name)
+                            break
                         except uvc.OpenError:
                             logger.info(
-                                "{} matches {} but is already in use or blocked.".format(
-                                    uid_for_name, name
-                                )
+                                f"{uid_for_name} matches {name} but is already in use "
+                                "or blocked."
                             )
                         except uvc.InitError:
                             logger.error("Camera failed to initialize.")
-                        else:
-                            break
+                if self.uvc_capture:
+                    break
 
         # checkframestripes will be initialized accordingly in configure_capture()
         self.enable_stripe_checks = check_stripes
@@ -132,7 +135,7 @@ class UVC_Source(Base_Source):
             self.frame_size_backup = frame_size
             self.frame_rate_backup = frame_rate
             self.exposure_time_backup = None
-            self._intrinsics = load_intrinsics(
+            self._intrinsics = Camera_Model.from_file(
                 self.g_pool.user_dir, self.name, self.frame_size
             )
         else:
@@ -167,32 +170,94 @@ class UVC_Source(Base_Source):
         ids_present = 0
         ids_to_install = []
         for id in DEV_HW_IDS:
-            cmd_str_query = "PupilDrvInst.exe --vid {} --pid {}".format(id[0], id[1])
-            print("Running ", cmd_str_query)
+            cmd_str_query = f"PupilDrvInst.exe --vid {id[0]} --pid {id[1]}"
+            print(f"Running {cmd_str_query}")
+            logger.debug(f"Running {cmd_str_query}")
             proc = subprocess.Popen(cmd_str_query)
             proc.wait()
             if proc.returncode == 2:
                 ids_present += 1
                 ids_to_install.append(id)
-        cmd_str_inst = 'Start-Process PupilDrvInst.exe -Wait -WorkingDirectory \\"{}\\"  -ArgumentList \'--vid {} --pid {} --desc \\"{}\\" --vendor \\"Pupil Labs\\" --inst\' -Verb runas;'
-        work_dir = os.getcwd()
-        # print('work_dir = ', work_dir)
+
         if ids_present > 0:
-            try:
-                os.mkdir(os.path.join(work_dir, "win_drv"))
-            except FileExistsError:
-                pass
-            cmd_str = ""
-            rmdir_str = "Remove-Item {}\\win_drv -recurse -Force;".format(work_dir)
-            for id in ids_to_install:
-                cmd_str += rmdir_str + cmd_str_inst.format(
-                    work_dir, id[0], id[1], id[2]
-                )
             logger.warning("Updating drivers, please wait...")
-            elevation_cmd = 'powershell.exe -version 5 -Command "{}"'.format(cmd_str)
-            print(elevation_cmd)
-            proc = subprocess.Popen(elevation_cmd)
-            proc.wait()
+
+            # NOTE: libwdi in PupilDrvIns.exe cannot deal with unicode characters in the
+            # temporary path where the drivers will be installed. Check for non-ascii in
+            # the default tempdir location and use C:\Windows\Temp as fallback.
+            temp_path = None  # use default temp_path
+            try:
+                with tempfile.TemporaryDirectory(dir=temp_path) as work_dir:
+                    work_dir.encode("ascii")
+            except UnicodeEncodeError:
+                temp_path = Path("C:\\Windows\\Temp")
+                if not temp_path.exists():
+                    raise RuntimeError(
+                        "Your path to Pupil contains Unicode characters and the "
+                        "default Temp folder location could not be found. Please place "
+                        "Pupil on a path which only contains english characters!"
+                    )
+                logger.debug(
+                    "Detected Unicode characters in working directory! "
+                    "Switching temporary driver install location to C:\\Windows\\Temp"
+                )
+
+            for id in ids_to_install:
+                # Create a new temp dir for every driver so even when experiencing
+                # PermissionErrors, we can just continue installing all necessary
+                # drivers.
+                try:
+                    with tempfile.TemporaryDirectory(dir=temp_path) as work_dir:
+                        # Need to resolve PupilDrvInst.exe location, which is on PATH
+                        # only for running from source. For bundle, the most stable
+                        # solution is to use sys._MEIPASS. Note that Path.cwd() can e.g.
+                        # return wrong results!
+                        if getattr(sys, "frozen", False):
+                            bundle_dir = sys._MEIPASS
+                            driver_exe = Path(bundle_dir) / "PupilDrvInst.exe"
+                            logger.debug(
+                                f"Detected running from bundle."
+                                f" Using full path to PupilDrvInst.exe at: {driver_exe}"
+                            )
+                        else:
+                            driver_exe = "PupilDrvInst.exe"
+                            logger.debug(
+                                f"Detected running from source."
+                                f" Assuming PupilDrvInst.exe is available on PATH!"
+                            )
+
+                        # Using """ here to be able to use both " and ' without escaping
+                        # Note: ArgumentList needs quotes ordered this way (' outer, "
+                        # inner), otherwise it won't work
+                        cmd = (
+                            f"""Start-Process '{driver_exe}' -Wait -Verb runas"""
+                            f""" -WorkingDirectory '{work_dir}'"""
+                            f""" -ArgumentList '--vid {id[0]} --pid {id[1]} --desc "{id[2]}" --vendor "Pupil Labs" --inst'"""
+                        )
+
+                        # We now have strings with both " and ' used for quoting. For
+                        # passing this as command to powershell.exe below, we need to
+                        # wrap the whole string in one set of "". In order for this to
+                        # work, we need to escape all " again:
+                        cmd = cmd.replace('"', '\\"')
+
+                        elevation_cmd = f'powershell.exe -version 5 -Command "{cmd}"'
+
+                        print(elevation_cmd)
+                        logger.debug(elevation_cmd)
+                        subprocess.Popen(elevation_cmd).wait()
+                except PermissionError as e:
+                    # This can be raised when cleaning up the TemporaryDirectory, if the
+                    # process was started from a non-admin shell for a non-admin user
+                    # and has only been elevated for the powershell commands. The files
+                    # then belong to a different user and cannot be deleted. We can
+                    # ignore this, as temp dirs will be cleaned up on shutdown anyways.
+                    logger.warning(
+                        "Pupil was not run as administrator. If the drivers do not "
+                        "work, please try running as administrator again!"
+                    )
+                    logger.debug(e)
+
             logger.warning("Done updating drivers!")
 
     def configure_capture(self, frame_size, frame_rate, uvc_controls):
@@ -491,7 +556,7 @@ class UVC_Source(Base_Source):
         self.uvc_capture.frame_size = size
         self.frame_size_backup = size
 
-        self._intrinsics = load_intrinsics(
+        self._intrinsics = Camera_Model.from_file(
             self.g_pool.user_dir, self.name, self.frame_size
         )
 
@@ -843,6 +908,9 @@ class UVC_Manager(Base_Manager):
             "eye1": ["ID1"],
             "world": ["ID2", "Logitech"],
         }
+        # Do not show RealSense cameras in selection, since they are not supported
+        # anymore in Pupil Capture since v1.22 and won't work.
+        self.ignore_patterns = ["RealSense"]
 
     def get_devices(self):
         self.devices.update()
@@ -860,6 +928,7 @@ class UVC_Manager(Base_Manager):
                 key=f"cam.{device['uid']}",
             )
             for device in self.devices
+            if not any(pattern in device["name"] for pattern in self.ignore_patterns)
         ]
 
     def activate(self, key):

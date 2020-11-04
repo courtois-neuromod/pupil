@@ -16,6 +16,9 @@ import socket
 import numpy as np
 
 import glfw
+
+glfw.ERROR_REPORTING = "raise"
+
 import gl_utils
 from pyglui import ui, cygl
 from plugin import System_Plugin_Base
@@ -40,7 +43,7 @@ class Service_UI(System_Plugin_Base):
         self,
         g_pool,
         window_size=window_size_default,
-        window_position=window_position_default,
+        window_position=None,
         gui_scale=1.0,
         ui_config={},
     ):
@@ -48,17 +51,25 @@ class Service_UI(System_Plugin_Base):
 
         self.texture = np.zeros((1, 1, 3), dtype=np.uint8) + 128
 
-        glfw.glfwInit()
+        glfw.init()
+        glfw.window_hint(glfw.SCALE_TO_MONITOR, glfw.TRUE)
         if g_pool.hide_ui:
-            glfw.glfwWindowHint(glfw.GLFW_VISIBLE, 0)  # hide window
-        main_window = glfw.glfwCreateWindow(*window_size, "Pupil Service")
-        glfw.glfwSetWindowPos(main_window, *window_position)
-        glfw.glfwMakeContextCurrent(main_window)
+            glfw.window_hint(glfw.VISIBLE, 0)  # hide window
+        main_window = glfw.create_window(*window_size, "Pupil Service", None, None)
+
+        window_position_manager = gl_utils.WindowPositionManager()
+        window_position = window_position_manager.new_window_position(
+            window=main_window,
+            default_position=window_position_default,
+            previous_position=window_position,
+        )
+        glfw.set_window_pos(main_window, *window_position)
+
+        glfw.make_context_current(main_window)
         cygl.utils.init()
         g_pool.main_window = main_window
 
         g_pool.gui = ui.UI()
-        g_pool.gui_user_scale = gui_scale
         g_pool.menubar = ui.Scrolling_Menu(
             "Settings", pos=(0, 0), size=(0, 0), header_pos="headline"
         )
@@ -66,11 +77,19 @@ class Service_UI(System_Plugin_Base):
 
         # Callback functions
         def on_resize(window, w, h):
+            # Always clear buffers on resize to make sure that there are no overlapping
+            # artifacts from previous frames.
+            gl_utils.glClear(gl_utils.GL_COLOR_BUFFER_BIT)
+            gl_utils.glClearColor(0, 0, 0, 1)
+
             self.window_size = w, h
-            self.hdpi_factor = glfw.getHDPIFactor(window)
-            g_pool.gui.scale = g_pool.gui_user_scale * self.hdpi_factor
+            self.content_scale = gl_utils.get_content_scale(window)
+            g_pool.gui.scale = self.content_scale
             g_pool.gui.update_window(w, h)
             g_pool.gui.collect_menus()
+
+            # Needed, to update the window buffer while resizing
+            self.update_ui()
 
         def on_window_key(window, key, scancode, action, mods):
             g_pool.gui.update_key(key, scancode, action, mods)
@@ -82,34 +101,35 @@ class Service_UI(System_Plugin_Base):
             g_pool.gui.update_button(button, action, mods)
 
         def on_pos(window, x, y):
-            x, y = x * self.hdpi_factor, y * self.hdpi_factor
+            x, y = gl_utils.window_coordinate_to_framebuffer_coordinate(
+                window, x, y, cached_scale=None
+            )
             g_pool.gui.update_mouse(x, y)
 
         def on_scroll(window, x, y):
             g_pool.gui.update_scroll(x, y * scroll_factor)
 
-        def set_scale(new_scale):
-            g_pool.gui_user_scale = new_scale
-            on_resize(main_window, *self.window_size)
-
         def set_window_size():
-            glfw.glfwSetWindowSize(main_window, *window_size_default)
+            # Get default window size
+            f_width, f_height = window_size_default
+
+            # Get current display scale factor
+            content_scale = gl_utils.get_content_scale(main_window)
+            framebuffer_scale = gl_utils.get_framebuffer_scale(main_window)
+            display_scale_factor = content_scale / framebuffer_scale
+
+            # Scale the capture frame size by display scale factor
+            f_width *= display_scale_factor
+            f_height *= display_scale_factor
+
+            # Set the newly calculated size (scaled capture frame size + scaled icon bar width)
+            glfw.set_window_size(main_window, int(f_width), int(f_height))
 
         def reset_restart():
             logger.warning("Resetting all settings and restarting Capture.")
-            glfw.glfwSetWindowShouldClose(main_window, True)
+            glfw.set_window_should_close(main_window, True)
             self.notify_all({"subject": "clear_settings_process.should_start"})
             self.notify_all({"subject": "service_process.should_start", "delay": 2.0})
-
-        g_pool.menubar.append(
-            ui.Selector(
-                "gui_user_scale",
-                g_pool,
-                setter=set_scale,
-                selection=[0.6, 0.8, 1.0, 1.2, 1.4],
-                label="Interface size",
-            )
-        )
 
         g_pool.menubar.append(ui.Button("Reset window size", set_window_size))
 
@@ -122,16 +142,6 @@ class Service_UI(System_Plugin_Base):
                 getter=lambda: pupil_remote_addr,
                 setter=lambda x: None,
                 label="Pupil Remote address",
-            )
-        )
-
-        g_pool.menubar.append(
-            ui.Selector(
-                "detection_mapping_mode",
-                g_pool,
-                label="Detection & mapping mode",
-                setter=self.set_detection_mapping_mode,
-                selection=["disabled", "2d", "3d"],
             )
         )
         g_pool.menubar.append(
@@ -158,16 +168,16 @@ class Service_UI(System_Plugin_Base):
         g_pool.menubar.append(ui.Button("Restart with default settings", reset_restart))
 
         # Register callbacks main_window
-        glfw.glfwSetFramebufferSizeCallback(main_window, on_resize)
-        glfw.glfwSetKeyCallback(main_window, on_window_key)
-        glfw.glfwSetCharCallback(main_window, on_window_char)
-        glfw.glfwSetMouseButtonCallback(main_window, on_window_mouse_button)
-        glfw.glfwSetCursorPosCallback(main_window, on_pos)
-        glfw.glfwSetScrollCallback(main_window, on_scroll)
+        glfw.set_framebuffer_size_callback(main_window, on_resize)
+        glfw.set_key_callback(main_window, on_window_key)
+        glfw.set_char_callback(main_window, on_window_char)
+        glfw.set_mouse_button_callback(main_window, on_window_mouse_button)
+        glfw.set_cursor_pos_callback(main_window, on_pos)
+        glfw.set_scroll_callback(main_window, on_scroll)
         g_pool.gui.configuration = ui_config
         gl_utils.basic_gl_setup()
 
-        on_resize(g_pool.main_window, *glfw.glfwGetFramebufferSize(main_window))
+        on_resize(g_pool.main_window, *glfw.get_framebuffer_size(main_window))
 
     def on_notify(self, notification):
         if notification["subject"] == "service_process.ui.should_update":
@@ -177,25 +187,22 @@ class Service_UI(System_Plugin_Base):
             self.update_ui()
 
     def update_ui(self):
-        if not glfw.glfwWindowShouldClose(self.g_pool.main_window):
+        if not glfw.window_should_close(self.g_pool.main_window):
             gl_utils.glViewport(0, 0, *self.window_size)
-            glfw.glfwPollEvents()
+            glfw.poll_events()
             self.gl_display()
             try:
-                clipboard = glfw.glfwGetClipboardString(
-                    self.g_pool.main_window
-                ).decode()
-            except AttributeError:  # clipbaord is None, might happen on startup
+                clipboard = glfw.get_clipboard_string(self.g_pool.main_window).decode()
+            except (AttributeError, glfw.GLFWError):
+                # clipbaord is None, might happen on startup
                 clipboard = ""
             self.g_pool.gui.update_clipboard(clipboard)
             user_input = self.g_pool.gui.update()
             if user_input.clipboard and user_input.clipboard != clipboard:
                 # only write to clipboard if content changed
-                glfw.glfwSetClipboardString(
-                    self.g_pool.main_window, user_input.clipboard.encode()
-                )
+                glfw.set_clipboard_string(self.g_pool.main_window, user_input.clipboard)
 
-            glfw.glfwSwapBuffers(self.g_pool.main_window)
+            glfw.swap_buffers(self.g_pool.main_window)
         else:
             self.notify_all({"subject": "service_process.should_stop"})
 
@@ -208,14 +215,14 @@ class Service_UI(System_Plugin_Base):
 
     def cleanup(self):
         if not self.g_pool.hide_ui:
-            glfw.glfwRestoreWindow(self.g_pool.main_window)
+            glfw.restore_window(self.g_pool.main_window)
 
         del self.g_pool.menubar[:]
         self.g_pool.gui.remove(self.g_pool.menubar)
 
         self.g_pool.gui.terminate()
-        glfw.glfwDestroyWindow(self.g_pool.main_window)
-        glfw.glfwTerminate()
+        glfw.destroy_window(self.g_pool.main_window)
+        glfw.terminate()
 
         del self.g_pool.gui
         del self.g_pool.main_window
@@ -223,14 +230,20 @@ class Service_UI(System_Plugin_Base):
 
     def get_init_dict(self):
         sess = {
-            "window_position": glfw.glfwGetWindowPos(self.g_pool.main_window),
-            "gui_scale": self.g_pool.gui_user_scale,
+            "window_position": glfw.get_window_pos(self.g_pool.main_window),
             "ui_config": self.g_pool.gui.configuration,
         }
 
-        session_window_size = glfw.glfwGetWindowSize(self.g_pool.main_window)
+        session_window_size = glfw.get_window_size(self.g_pool.main_window)
         if 0 not in session_window_size:
-            sess["window_size"] = session_window_size
+            f_width, f_height = session_window_size
+            if platform.system() in ("Windows", "Linux"):
+                content_scale = gl_utils.get_content_scale(self.g_pool.main_window)
+                f_width, f_height = (
+                    f_width / content_scale,
+                    f_height / content_scale,
+                )
+            sess["window_size"] = int(f_width), int(f_height)
 
         return sess
 
@@ -247,6 +260,3 @@ class Service_UI(System_Plugin_Base):
                 "delay": 0.2,
             }
         self.notify_all(n)
-
-    def set_detection_mapping_mode(self, new_mode):
-        self.notify_all({"subject": "set_detection_mapping_mode", "mode": new_mode})

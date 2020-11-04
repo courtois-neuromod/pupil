@@ -13,22 +13,23 @@ import logging
 import time
 
 import ndsi
-from packaging.version import Version
 from pyglui import ui
+from version_utils import parse_version
 
-from camera_models import load_intrinsics
+import os_utils
+from camera_models import Camera_Model
 
 from .base_backend import Base_Manager, Base_Source, SourceInfo
 
 try:
     from ndsi import __version__
 
-    assert Version(__version__) >= Version("1.0.dev0")
+    assert parse_version(__version__) >= parse_version("1.3")
     from ndsi import __protocol_version__
 except (ImportError, AssertionError):
-    raise Exception("pyndsi version is to old. Please upgrade") from None
+    raise Exception("pyndsi version is too old. Please upgrade!") from None
 
-
+os_utils.patch_pyre_zhelper_cdll()
 logger = logging.getLogger(__name__)
 
 # Suppress pyre debug logs (except beacon)
@@ -220,7 +221,7 @@ class NDSI_Source(Base_Source):
     @property
     def intrinsics(self):
         if self._intrinsics is None or self._intrinsics.resolution != self.frame_size:
-            self._intrinsics = load_intrinsics(
+            self._intrinsics = Camera_Model.from_file(
                 self.g_pool.user_dir, self.name, self.frame_size
             )
         return self._intrinsics

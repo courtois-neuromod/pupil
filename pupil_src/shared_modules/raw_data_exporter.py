@@ -19,13 +19,13 @@ from pyglui import ui
 
 import csv_utils
 import player_methods as pm
-from plugin import Analysis_Plugin_Base
+from plugin import Plugin
 
 # logging
 logger = logging.getLogger(__name__)
 
 
-class Raw_Data_Exporter(Analysis_Plugin_Base):
+class Raw_Data_Exporter(Plugin):
     """
     pupil_positions.csv
     keys:
@@ -103,7 +103,7 @@ class Raw_Data_Exporter(Analysis_Plugin_Base):
         gaze_normal1_x - x normal of the visual axis for eye 1 in the world camera coordinate system (not avaible for monocular setups.). The visual axis goes through the eye ball center and the object thats looked at.
         gaze_normal1_y - y normal of the visual axis for eye 1
         gaze_normal1_z - z normal of the visual axis for eye 1
-        """
+    """
 
     icon_chr = chr(0xE873)
     icon_font = "pupil_icons"
@@ -161,7 +161,7 @@ class Raw_Data_Exporter(Analysis_Plugin_Base):
         if self.should_export_pupil_positions:
             pupil_positions_exporter = Pupil_Positions_Exporter()
             pupil_positions_exporter.csv_export_write(
-                positions_bisector=self.g_pool.pupil_positions,
+                positions_bisector=self.g_pool.pupil_positions[..., ...],
                 timestamps=self.g_pool.timestamps,
                 export_window=export_window,
                 export_dir=export_dir,

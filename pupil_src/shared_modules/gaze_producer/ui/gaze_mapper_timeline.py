@@ -48,6 +48,10 @@ class GazeMapperTimeline:
         self._gaze_mapper_controller.add_observer(
             "publish_all_enabled_mappers", self._on_publish_enabled_mappers
         )
+        self._gaze_mapper_controller.add_observer(
+            "set_calibration_unique_id",
+            self._on_calibration_unique_id_changed,
+        )
 
         self._calibration_controller.add_observer(
             "set_calibration_range_from_current_trim_marks",
@@ -74,8 +78,8 @@ class GazeMapperTimeline:
         color = (
             [0.3, 0.5, 0.5, alpha]
             # [136 / 255, 92 / 255, 197 / 255, alpha*1.0]
-            if gaze_mapper.calculate_complete
-            else [0.66 * 0.7, 0.86 * 0.7, 0.46 * 0.7, alpha*0.8]
+            if not gaze_mapper.empty()
+            else [0.66 * 0.7, 0.86 * 0.7, 0.46 * 0.7, alpha * 0.8]
         )
         return RangeElementFrameIdx(from_idx, to_idx, color_rgba=color, height=10)
 
@@ -119,4 +123,7 @@ class GazeMapperTimeline:
 
     def _on_calibration_deleted(self, _):
         # the deleted calibration might be used by one of the gaze mappers
+        self.render_parent_timeline()
+
+    def _on_calibration_unique_id_changed(self, _1, _2):
         self.render_parent_timeline()

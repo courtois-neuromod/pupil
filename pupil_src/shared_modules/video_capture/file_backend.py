@@ -22,17 +22,18 @@ import av
 import numpy as np
 from pyglui import ui
 
-from camera_models import load_intrinsics
+from camera_models import Camera_Model
 from pupil_recording import PupilRecording
 
 from .base_backend import Base_Manager, Base_Source, EndofVideoError, Playback_Source
-from .utils import VideoSet
+from .utils import VideoSet, InvalidContainerError
 
 logger = logging.getLogger(__name__)
 av.logging.set_level(av.logging.ERROR)
 logging.getLogger("libav").setLevel(logging.ERROR)
+logging.getLogger("av.buffered_decoder").setLevel(logging.WARNING)
 
-assert av.__version__ >= "0.4.3", "pyav is out-of-date, please update"
+assert av.__version__ >= "0.4.5", "pyav is out-of-date, please update"
 
 
 class FileSeekError(Exception):
@@ -244,7 +245,7 @@ class File_Source(Playback_Source, Base_Source):
         self.buffering = buffered_decoding
         # Load video split for first frame
         self.reset_video()
-        self._intrinsics = load_intrinsics(rec, set_name, self.frame_size)
+        self._intrinsics = Camera_Model.from_file(rec, set_name, self.frame_size)
 
         self.show_plugin_menu = show_plugin_menu
 
@@ -299,13 +300,11 @@ class File_Source(Playback_Source, Base_Source):
             # setup a 'valid' broken stream
             self.video_stream = BrokenStream()
         else:
-            container = self.videoset.containers[container_index]
-            if container is None:
-                # TODO: Shouldn't this be caught through an invalid container_index?
-                logger.warning("Video container is broken, although it appeared valid.")
-                self.video_stream = BrokenStream()
-            else:
+            try:
+                container = self.videoset.get_container(container_index)
                 self.video_stream = self._get_streams(container, self.buffering)
+            except InvalidContainerError:
+                self.video_stream = BrokenStream()
 
         self.video_stream.seek(0)
         self.current_container_index = container_index

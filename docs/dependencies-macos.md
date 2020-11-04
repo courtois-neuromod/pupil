@@ -46,7 +46,6 @@ brew install portaudio
 # tbb is included by default with https://github.com/Homebrew/homebrew-core/pull/20101
 brew install opencv
 brew install glew
-brew install glfw3
 # dependencies for 2d_3d c++ detector
 brew install ceres-solver
 ```
@@ -78,7 +77,9 @@ pip install psutil
 pip install pyaudio
 pip install pyopengl
 pip install pyzmq
+pip install scikit-learn
 pip install scipy
+pip install glfw
 pip install git+https://github.com/zeromq/pyre
 
 pip install pupil-apriltags
@@ -87,8 +88,6 @@ pip install git+https://github.com/pupil-labs/PyAV
 pip install git+https://github.com/pupil-labs/pyuvc
 pip install git+https://github.com/pupil-labs/pyndsi
 pip install git+https://github.com/pupil-labs/pyglui
-pip install git+https://github.com/pupil-labs/nslr
-pip install git+https://github.com/pupil-labs/nslr-hmm
 ```
 
 **NOTE:** Installing **pyglui** might fail on newer versions of **macOS** due to missing OpenGL headers. In this case, you need to install Xcode which comes with the required header files.

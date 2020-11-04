@@ -15,6 +15,9 @@ from pyglui import ui
 from pyglui.cygl.utils import draw_gl_texture
 
 import glfw
+
+glfw.ERROR_REPORTING = "raise"
+
 from gl_utils import (
     adjust_gl_view,
     basic_gl_setup,
@@ -32,12 +35,13 @@ logger = logging.getLogger(__name__)
 
 
 class Detector2DPlugin(PupilDetectorPlugin):
-    uniqueness = "by_base_class"
+    uniqueness = "by_class"
     icon_font = "pupil_icons"
     icon_chr = chr(0xEC18)
 
     label = "C++ 2d detector"
     identifier = "2d"
+    order = 0.100
 
     def __init__(
         self, g_pool=None, namespaced_properties=None, detector_2d: Detector2D = None
@@ -48,7 +52,7 @@ class Detector2DPlugin(PupilDetectorPlugin):
         self._subsample_fps = 0
         self._last_detect_timestamp = 0
 
-    def detect(self, frame):
+    def detect(self, frame, **kwargs):
         if self._subsample_fps > 0 and frame.timestamp > self._last_detect_timestamp:
             if (frame.timestamp-self._last_detect_timestamp)*self._subsample_fps < 1:
                 # skip the detection on that frame, return previous result
@@ -60,7 +64,9 @@ class Detector2DPlugin(PupilDetectorPlugin):
 
         debug_img = frame.bgr if self.g_pool.display_mode == "algorithm" else None
         result = self.detector_2d.detect(
-            gray_img=frame.gray, color_img=debug_img, roi=roi,
+            gray_img=frame.gray,
+            color_img=debug_img,
+            roi=roi,
         )
         eye_id = self.g_pool.eye_id
         location = result["location"]
@@ -68,7 +74,7 @@ class Detector2DPlugin(PupilDetectorPlugin):
             location, (frame.width, frame.height), flip_y=True
         )
         result["timestamp"] = frame.timestamp
-        result["topic"] = f"pupil.{eye_id}"
+        result["topic"] = f"pupil.{eye_id}.{self.identifier}"
         result["id"] = eye_id
         result["method"] = "2d c++"
         return result
@@ -91,10 +97,10 @@ class Detector2DPlugin(PupilDetectorPlugin):
 
     def gl_display(self):
         if self._recent_detection_result:
-            draw_pupil_outline(self._recent_detection_result)
+            draw_pupil_outline(self._recent_detection_result, color_rgb=(0, 0.5, 1))
 
     def init_ui(self):
-        self.add_menu()
+        super().init_ui()
         self.menu.label = self.pretty_class_name
         self.menu_icon.label_font = "pupil_icons"
         info = ui.Info_Text(
@@ -143,6 +149,3 @@ class Detector2DPlugin(PupilDetectorPlugin):
                 step=1,
             )
         )
-
-    def deinit_ui(self):
-        self.remove_menu()

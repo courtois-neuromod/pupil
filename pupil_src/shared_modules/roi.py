@@ -19,6 +19,9 @@ from pyglui.cygl.utils import draw_points as cygl_draw_points
 from pyglui.cygl.utils import draw_polyline as cygl_draw_polyline
 
 import glfw
+
+glfw.ERROR_REPORTING = "raise"
+
 from methods import denormalize, normalize
 from observable import Observable
 from plugin import Plugin
@@ -155,7 +158,7 @@ class RoiModel(Observable):
 
     def on_changed(self) -> None:
         """Called when the model changes.
-        
+
         Observe this method to be notified of any changes.
         """
         pass
@@ -188,7 +191,10 @@ class Roi(Plugin):
     outline_color = cygl_rgba(0.8, 0.8, 0.8, 0.9)
 
     def __init__(
-        self, g_pool, frame_size: Vec2 = (0, 0), bounds: Bounds = (0, 0, 0, 0),
+        self,
+        g_pool,
+        frame_size: Vec2 = (0, 0),
+        bounds: Bounds = (0, 0, 0, 0),
     ) -> None:
         super().__init__(g_pool)
         self.model = RoiModel(frame_size)
@@ -283,12 +289,15 @@ class Roi(Plugin):
         self.model.frame_size = (frame.width, frame.height)
 
     def on_click(self, pos: Vec2, button: int, action: int) -> bool:
-        if action == glfw.GLFW_PRESS:
+        if not self.has_frame or self.model.is_invalid():
+            return False
+
+        if action == glfw.PRESS:
             clicked_handle = self.get_handle_at(pos)
             if clicked_handle != self.active_handle:
                 self.active_handle = clicked_handle
                 return True
-        elif action == glfw.GLFW_RELEASE:
+        elif action == glfw.RELEASE:
             if self.active_handle != Handle.NONE:
                 self.active_handle = Handle.NONE
                 return True
