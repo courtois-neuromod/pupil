@@ -154,6 +154,7 @@ class Aravis_Source(Base_Source):
                 latch_res = None
                 camera_ts = None
 
+            self.create_buffers()
             #self._start_capture()
         else:
             self._intrinsics = Camera_Model.from_file(
@@ -182,7 +183,6 @@ class Aravis_Source(Base_Source):
             self.stream.push_buffer(Aravis.Buffer.new_allocate(payload))
 
     def _start_capture(self):
-        self.create_buffers()
 
         # set exposure to the minimum, should work in semi-dark environment
         self.exposure_time_backup = self.exposure_time
@@ -200,12 +200,14 @@ class Aravis_Source(Base_Source):
             self.timestamp_offset = first_buf_os_time - buf.get_timestamp()*1e-9
         self.stream.push_buffer(buf)
 
+        """
         logger.info(
             'first frame at %f %f %f %f'%(
                 buf.get_timestamp()*1e-9,
                 buf.get_system_timestamp()*1e-9,
                 self.timestamp_offset,
                 self.g_pool.get_timestamp()))
+        """
 
         self.exposure_time = self.exposure_time_backup
         self._status = True
@@ -357,6 +359,7 @@ class Aravis_Source(Base_Source):
             self.g_pool.user_dir, self.name, self.frame_size
         )
         self.dark_image = None
+        self.create_buffers()
         if status_back:
             self._start_capture()
 
