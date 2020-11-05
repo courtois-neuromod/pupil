@@ -49,8 +49,16 @@ class Detector2DPlugin(PupilDetectorPlugin):
         super().__init__(g_pool=g_pool)
         self.detector_2d = detector_2d or Detector2D(namespaced_properties or {})
         self.proxy = PropertyProxy(self.detector_2d)
+        self._subsample_fps = 0
+        self._last_detect_timestamp = 0
 
     def detect(self, frame, **kwargs):
+        if self._subsample_fps > 0 and frame.timestamp > self._last_detect_timestamp:
+            if (frame.timestamp-self._last_detect_timestamp)*self._subsample_fps < 1:
+                # skip the detection on that frame, return previous result
+                return self._recent_detection_result
+        self._last_detect_timestamp = frame.timestamp
+
         # convert roi-plugin to detector roi
         roi = Roi(*self.g_pool.roi.bounds)
 
@@ -78,6 +86,14 @@ class Detector2DPlugin(PupilDetectorPlugin):
     @property
     def pretty_class_name(self):
         return "Pupil Detector 2D"
+
+    @property
+    def subsample_fps(self):
+        return self._subsample_fps
+
+    @subsample_fps.setter
+    def subsample_fps(self, subsample_fps):
+        self._subsample_fps = subsample_fps
 
     def gl_display(self):
         if self._recent_detection_result:
@@ -120,6 +136,16 @@ class Detector2DPlugin(PupilDetectorPlugin):
                 label="Pupil max",
                 min=50,
                 max=400,
+                step=1,
+            )
+        )
+        self.menu.append(
+            ui.Slider(
+                "subsample_fps",
+                self,
+                label="subsample FPS",
+                min=0,
+                max=250,
                 step=1,
             )
         )
