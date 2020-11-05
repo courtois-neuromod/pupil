@@ -190,9 +190,10 @@ class Aravis_Source(Base_Source):
         self._set_dark_image = True
 
         self.cam.start_acquisition()
+        first_buf_os_time = time.time() # get approximate time of the first buffer
+        time.sleep(.0001)
         buf = None
         while buf is None:
-            first_buf_os_time = time.time() # get approximate time of the first buffer
             buf = self.stream.try_pop_buffer()
 
         if self.timestamp_offset is None:
@@ -289,13 +290,10 @@ class Aravis_Source(Base_Source):
 
     def recent_events(self, events):
         if (self.cam is None) or (not self._status):
-            time.sleep(0.0001) # 10th the max frame rate of the camera
             return
         frame = self.get_frame()
         if frame is None:
-            logger.debug('no frame')
             return
-        logger.debug('frame')
         self._recent_frame = frame
         events["frame"] = frame
 
