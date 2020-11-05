@@ -54,7 +54,8 @@ class Detector2DPlugin(PupilDetectorPlugin):
 
     def detect(self, frame, **kwargs):
         if self._subsample_fps > 0 and frame.timestamp > self._last_detect_timestamp:
-            if (frame.timestamp-self._last_detect_timestamp)*self._subsample_fps < 1:
+            if (frame.timestamp-self._last_detect_timestamp)*self._subsample_fps < 1 or \
+                self._recent_detection_result is None:
                 # skip the detection on that frame, return previous result
                 return self._recent_detection_result
         self._last_detect_timestamp = frame.timestamp
