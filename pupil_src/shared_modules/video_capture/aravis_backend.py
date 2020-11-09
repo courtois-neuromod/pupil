@@ -50,14 +50,18 @@ class Frame(object):
 
     @property
     def img(self):
-        return self._img
+        return self.bgr
 
     @property
     def bgr(self):
+        if self._img is None and self._gray is not None:
+            self._img = np.repeat(self._gray[..., np.newaxis], 3, 2)
         return self._img
 
     @property
     def gray(self):
+        if self._gray is None and self._img is not None:
+            self._gray = (self._img.sum(2)/3).astype(np.uint8)
         return self._gray
 
 class Aravis_Source(Base_Source):
@@ -82,7 +86,6 @@ class Aravis_Source(Base_Source):
 
         super().__init__(g_pool, *args, **kwargs)
         self.cam = None
-        self._restart_in = 3
         self._status = False
         self._set_dark_image = False
 
@@ -187,7 +190,7 @@ class Aravis_Source(Base_Source):
         # set exposure to the minimum, should work in semi-dark environment
         self.exposure_time_backup = self.exposure_time
         self.exposure_time = 0
-        self._set_dark_image = True
+        #self._set_dark_image = True
 
         self.cam.start_acquisition()
         first_buf_os_time = time.time() # get approximate time of the first buffer
@@ -259,18 +262,10 @@ class Aravis_Source(Base_Source):
             logger.info('dark_image max = %d'%self.dark_image.max())
             self._set_dark_image = False
             self.exposure_time = self.exposure_time_backup
-            #return Frame(time.time(), self.dark_image, index)
 
         if not self.dark_image is None:
-            #return Frame(time.time(), self.dark_image, index)
-            #np.subtract(data, self.dark_image, data)
-            #data[:] = (data < self.dark_image)*255
             subtract_nowrap(data, self.dark_image, data)
 
-        #print('data minmax = %d, %d'%(data.min(),data.max()))
-        #return Frame(time.time(), data, index)
-        #print(ts*1e-9)
-        #return Frame(ts/self.timestamp_freq, data, index)
         return Frame(ts*1e-9 + self.timestamp_offset, data, index)
 
     def _array_from_buffer_address(self, buf):
@@ -285,15 +280,15 @@ class Aravis_Source(Base_Source):
         addr = buf.get_data()
         ptr = ctypes.cast(addr, INTP)
         im = np.ctypeslib.as_array(ptr, (buf.get_image_height(), buf.get_image_width()))
-        #im =  np.flip(im, (0,1)).copy(order='C')
         return im.copy()
 
     def recent_events(self, events):
         if (self.cam is None) or (not self._status):
             return
-        frame = self.get_frame()
-        if frame is None:
-            return
+        frame = None
+        while frame is None:
+            frame = self.get_frame()
+
         self._recent_frame = frame
         events["frame"] = frame
 
@@ -337,14 +332,7 @@ class Aravis_Source(Base_Source):
         # we set the real size that the system accepted
         size = (self.get_feature('Width'),
             self.get_feature('Height'))
-        """
-        r_x,r_y,r_w,r_h,r_s= self.g_pool.u_r.get()
-        if r_x+r_w > width:
-            r_w = width-r_x
-        if r_y+r_h > height:
-            r_h = height-r_y
-        self.g_pool.u_r = UIRoi(r_x,r_y,r_w,r_h,new_size)
-        """
+
         if tuple(size) != tuple(new_size):
             logger.warning(
                 "{} resolution capture mode not available. Selected {}.".format(
@@ -397,15 +385,6 @@ class Aravis_Source(Base_Source):
         else:
             logger.warning("Feature type not implemented: %s"%ntype)
 
-        """
-        # the set_feature function in python-aravis doesn't work
-        # here is a workaround inspired by arv-tool sourcecode
-        feat = self.dev.get_feature(name)
-        if feat is None:
-            return
-        feat.set_value(value)
-        return feat.get_value()
-        """
 
     def get_feature(self, name):
 
@@ -423,13 +402,6 @@ class Aravis_Source(Base_Source):
             return self.dev.get_integer_feature_value(name)
         else:
             logger.warning("Feature type not implemented: %s", ntype)
-
-        """
-        feat = self.dev.get_feature(name)
-        if feat is None:
-            return
-        return feat.get_value()
-        """
 
     @property
     def frame_rate(self):
