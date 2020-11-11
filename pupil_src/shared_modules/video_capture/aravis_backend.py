@@ -140,7 +140,7 @@ class Aravis_Source(Base_Source):
                 self.timestamp_offset = None
                 camera_os_time_diffs = []
                 for i in range(100):
-                    os_time = time.time()
+                    os_time = self.g_pool.get_timestamp()
                     latch_res = self.dev.execute_command('GevTimestampControlLatch')
                     camera_ts = self.get_feature('GevTimestampValue')/self.timestamp_freq
                     camera_os_time_diffs.append(os_time-camera_ts)
@@ -193,25 +193,25 @@ class Aravis_Source(Base_Source):
         #self._set_dark_image = True
 
         self.cam.start_acquisition()
-        first_buf_os_time = time.time() # get approximate time of the first buffer
+        first_buf_os_time = self.g_pool.get_timestamp() # get approximate time of the first buffer
         time.sleep(.0001)
         buf = None
         while buf is None:
             buf = self.stream.try_pop_buffer()
-
+        ts = buf.get_timestamp()*1e-9
+        self.stream.push_buffer(buf)
         if self.timestamp_offset is None:
             # get an approximate time difference if camera does not support timestamplatch
-            self.timestamp_offset = first_buf_os_time - buf.get_timestamp()*1e-9
-        self.stream.push_buffer(buf)
+            self.timestamp_offset = first_buf_os_time - ts
 
-        """
         logger.info(
-            'first frame at %f %f %f %f'%(
+            'first frame at %f %f %f %f %f'%(
                 buf.get_timestamp()*1e-9,
                 buf.get_system_timestamp()*1e-9,
                 self.timestamp_offset,
-                self.g_pool.get_timestamp()))
-        """
+                self.g_pool.get_timestamp(),
+                time.time()))
+
 
         self.exposure_time = self.exposure_time_backup
         self._status = True
