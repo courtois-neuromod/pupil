@@ -195,7 +195,7 @@ class AV_Writer(abc.ABC):
                 video_packed_encoded = True
             self.container.mux(packet)
 
-        if not video_packed_encoded:
+        if not video_packed_encoded and self.codec!='libx265':
             logger.warning(f"Encoding frame {input_frame.index} failed!")
             return
 
