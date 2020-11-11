@@ -223,7 +223,7 @@ class Video:
         packets = container.demux(video=0)
         # last pts is invalid
         self._pts = np.array([packet.pts for packet in packets][:-1])
-        return self._pts
+        return np.sort(self._pts)
 
     @property
     def name(self) -> str:
