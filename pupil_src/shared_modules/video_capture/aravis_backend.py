@@ -88,6 +88,7 @@ class Aravis_Source(Base_Source):
         self.cam = None
         self._status = False
         self._set_dark_image = False
+        self.dark_image = None
 
         logger.warning(
             "Activating camera: %s" % uid
@@ -119,8 +120,8 @@ class Aravis_Source(Base_Source):
                 raise RuntimeError("Error creating stream")
             self.payload = 0
 
-            self.stream.set_property('packet_timeout', 100000)
-            self.set_feature('GevSCPSPacketSize', 1500)
+            self.stream.set_property('packet_timeout', 1000000)
+            self.set_feature('GevSCPSPacketSize', 9152)
             #self.set_feature('PixelMappingFormat', 'LowBits')
             self.current_frame_idx = 0
 
@@ -158,7 +159,7 @@ class Aravis_Source(Base_Source):
                 camera_ts = None
 
             self.create_buffers()
-            #self._start_capture()
+            self._start_capture()
         else:
             self._intrinsics = Camera_Model.from_file(
                 self.g_pool.user_dir, self.name, self.frame_size
@@ -617,7 +618,7 @@ class Aravis_Manager(Base_Manager):
             "frame_size": self.g_pool.capture.frame_size,
             "frame_rate": self.g_pool.capture.frame_rate,
             "exposure_time": 4000,
-            "global_gain": 0,
+            "global_gain": 4,
             "uid": source_uid,
         }
         if self.g_pool.process == "world":
