@@ -120,8 +120,12 @@ class Aravis_Source(Base_Source):
                 raise RuntimeError("Error creating stream")
             self.payload = 0
 
-            self.stream.set_property('packet_timeout', 1000000)
-            self.set_feature('GevSCPSPacketSize', 9152)
+            self.stream.set_property('packet_timeout', 2000000)
+            self.stream.set_property("socket-buffer", Aravis.GvStreamSocketBuffer.AUTO)
+            self.stream.set_property("packet-resend", Aravis.GvStreamPacketResend.ALWAYS)
+            self.stream.set_property("socket-buffer-size", 1048576)
+            #self.set_feature('GevSCPSPacketSize', 9152)
+            self.dev.auto_packet_size()
             #self.set_feature('PixelMappingFormat', 'LowBits')
             self.current_frame_idx = 0
 
@@ -177,6 +181,7 @@ class Aravis_Source(Base_Source):
 
         payload = self.cam.get_payload()
         if payload == self.payload and sum(self.stream.get_n_buffers())==self.nbuffers:
+            self._flush_buffers()
             return
 
         self._flush_buffers(keep=False)
@@ -199,15 +204,15 @@ class Aravis_Source(Base_Source):
         buf = None
         while buf is None:
             buf = self.stream.try_pop_buffer()
-        ts = buf.get_timestamp()*1e-9
+        first_buf_ts = buf.get_timestamp()*1e-9
         self.stream.push_buffer(buf)
         if self.timestamp_offset is None:
             # get an approximate time difference if camera does not support timestamplatch
-            self.timestamp_offset = first_buf_os_time - ts
+            self.timestamp_offset = first_buf_os_time - first_buf_ts
 
         logger.info(
             'first frame at %f %f %f %f %f'%(
-                buf.get_timestamp()*1e-9,
+                first_buf_ts*1e-9,
                 buf.get_system_timestamp()*1e-9,
                 self.timestamp_offset,
                 self.g_pool.get_timestamp(),
@@ -239,7 +244,12 @@ class Aravis_Source(Base_Source):
 
     def get_frame(self):
         buf = self.stream.try_pop_buffer()
-        #print(self.stream.get_n_buffers())
+        nbuffers = self.stream.get_n_buffers()
+        if nbuffers[0] == 0:
+            logger.error("Buffer overflow")
+        elif nbuffers[0] > self.nbuffers < .1:
+            logger.warning("Buffer close to overflow")
+        data = None
         if buf:
             payload_type = buf.get_payload_type()
             if payload_type != Aravis.BufferPayloadType.IMAGE:
@@ -250,10 +260,10 @@ class Aravis_Source(Base_Source):
                 ts = buf.get_timestamp()
             else:
                 logger.warning('Buffer STATUS: %s'%buffer_status.value_nick)
-                return None
             self.stream.push_buffer(buf)
-        else:
-            return None
+
+        if data is None:
+            return
 
         index = self.current_frame_idx
         self.current_frame_idx += 1
