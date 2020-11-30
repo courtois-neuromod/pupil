@@ -50,14 +50,18 @@ class Frame(object):
 
     @property
     def img(self):
-        return self._img
+        return self.bgr
 
     @property
     def bgr(self):
+        if self._img is None and self._gray is not None:
+            self._img = np.repeat(self._gray[..., np.newaxis], 3, 2)
         return self._img
 
     @property
     def gray(self):
+        if self._gray is None and self._img is not None:
+            self._gray = (self._img.sum(2)/3).astype(np.uint8)
         return self._gray
 
 class Aravis_Source(Base_Source):
@@ -82,9 +86,9 @@ class Aravis_Source(Base_Source):
 
         super().__init__(g_pool, *args, **kwargs)
         self.cam = None
-        self._restart_in = 3
         self._status = False
         self._set_dark_image = False
+        self.dark_image = None
 
         logger.warning(
             "Activating camera: %s" % uid
@@ -116,8 +120,12 @@ class Aravis_Source(Base_Source):
                 raise RuntimeError("Error creating stream")
             self.payload = 0
 
-            self.stream.set_property('packet_timeout', 100000)
-            self.set_feature('GevSCPSPacketSize', 1500)
+            self.stream.set_property('packet_timeout', 2000000)
+            self.stream.set_property("socket-buffer", Aravis.GvStreamSocketBuffer.AUTO)
+            self.stream.set_property("packet-resend", Aravis.GvStreamPacketResend.ALWAYS)
+            self.stream.set_property("socket-buffer-size", 1048576)
+            #self.set_feature('GevSCPSPacketSize', 9152)
+            self.dev.auto_packet_size()
             #self.set_feature('PixelMappingFormat', 'LowBits')
             self.current_frame_idx = 0
 
@@ -137,7 +145,7 @@ class Aravis_Source(Base_Source):
                 self.timestamp_offset = None
                 camera_os_time_diffs = []
                 for i in range(100):
-                    os_time = time.time()
+                    os_time = self.g_pool.get_timestamp()
                     latch_res = self.dev.execute_command('GevTimestampControlLatch')
                     camera_ts = self.get_feature('GevTimestampValue')/self.timestamp_freq
                     camera_os_time_diffs.append(os_time-camera_ts)
@@ -155,7 +163,7 @@ class Aravis_Source(Base_Source):
                 camera_ts = None
 
             self.create_buffers()
-            #self._start_capture()
+            self._start_capture()
         else:
             self._intrinsics = Camera_Model.from_file(
                 self.g_pool.user_dir, self.name, self.frame_size
@@ -173,6 +181,7 @@ class Aravis_Source(Base_Source):
 
         payload = self.cam.get_payload()
         if payload == self.payload and sum(self.stream.get_n_buffers())==self.nbuffers:
+            self._flush_buffers()
             return
 
         self._flush_buffers(keep=False)
@@ -187,28 +196,28 @@ class Aravis_Source(Base_Source):
         # set exposure to the minimum, should work in semi-dark environment
         self.exposure_time_backup = self.exposure_time
         self.exposure_time = 0
-        self._set_dark_image = True
+        #self._set_dark_image = True
 
         self.cam.start_acquisition()
-        first_buf_os_time = time.time() # get approximate time of the first buffer
+        first_buf_os_time = self.g_pool.get_timestamp() # get approximate time of the first buffer
         time.sleep(.0001)
         buf = None
         while buf is None:
             buf = self.stream.try_pop_buffer()
-
+        first_buf_ts = buf.get_timestamp()*1e-9
+        self.stream.push_buffer(buf)
         if self.timestamp_offset is None:
             # get an approximate time difference if camera does not support timestamplatch
-            self.timestamp_offset = first_buf_os_time - buf.get_timestamp()*1e-9
-        self.stream.push_buffer(buf)
+            self.timestamp_offset = first_buf_os_time - first_buf_ts
 
-        """
         logger.info(
-            'first frame at %f %f %f %f'%(
-                buf.get_timestamp()*1e-9,
+            'first frame at %f %f %f %f %f'%(
+                first_buf_ts*1e-9,
                 buf.get_system_timestamp()*1e-9,
                 self.timestamp_offset,
-                self.g_pool.get_timestamp()))
-        """
+                self.g_pool.get_timestamp(),
+                time.time()))
+
 
         self.exposure_time = self.exposure_time_backup
         self._status = True
@@ -235,7 +244,12 @@ class Aravis_Source(Base_Source):
 
     def get_frame(self):
         buf = self.stream.try_pop_buffer()
-        #print(self.stream.get_n_buffers())
+        nbuffers = self.stream.get_n_buffers()
+        if nbuffers[0] == 0:
+            logger.error("Buffer overflow")
+        elif nbuffers[0] > self.nbuffers < .1:
+            logger.warning("Buffer close to overflow")
+        data = None
         if buf:
             payload_type = buf.get_payload_type()
             if payload_type != Aravis.BufferPayloadType.IMAGE:
@@ -246,10 +260,10 @@ class Aravis_Source(Base_Source):
                 ts = buf.get_timestamp()
             else:
                 logger.warning('Buffer STATUS: %s'%buffer_status.value_nick)
-                return None
             self.stream.push_buffer(buf)
-        else:
-            return None
+
+        if data is None:
+            return
 
         index = self.current_frame_idx
         self.current_frame_idx += 1
@@ -259,18 +273,10 @@ class Aravis_Source(Base_Source):
             logger.info('dark_image max = %d'%self.dark_image.max())
             self._set_dark_image = False
             self.exposure_time = self.exposure_time_backup
-            #return Frame(time.time(), self.dark_image, index)
 
         if not self.dark_image is None:
-            #return Frame(time.time(), self.dark_image, index)
-            #np.subtract(data, self.dark_image, data)
-            #data[:] = (data < self.dark_image)*255
             subtract_nowrap(data, self.dark_image, data)
 
-        #print('data minmax = %d, %d'%(data.min(),data.max()))
-        #return Frame(time.time(), data, index)
-        #print(ts*1e-9)
-        #return Frame(ts/self.timestamp_freq, data, index)
         return Frame(ts*1e-9 + self.timestamp_offset, data, index)
 
     def _array_from_buffer_address(self, buf):
@@ -285,15 +291,15 @@ class Aravis_Source(Base_Source):
         addr = buf.get_data()
         ptr = ctypes.cast(addr, INTP)
         im = np.ctypeslib.as_array(ptr, (buf.get_image_height(), buf.get_image_width()))
-        #im =  np.flip(im, (0,1)).copy(order='C')
         return im.copy()
 
     def recent_events(self, events):
         if (self.cam is None) or (not self._status):
             return
-        frame = self.get_frame()
-        if frame is None:
-            return
+        frame = None
+        while frame is None:
+            frame = self.get_frame()
+
         self._recent_frame = frame
         events["frame"] = frame
 
@@ -337,14 +343,7 @@ class Aravis_Source(Base_Source):
         # we set the real size that the system accepted
         size = (self.get_feature('Width'),
             self.get_feature('Height'))
-        """
-        r_x,r_y,r_w,r_h,r_s= self.g_pool.u_r.get()
-        if r_x+r_w > width:
-            r_w = width-r_x
-        if r_y+r_h > height:
-            r_h = height-r_y
-        self.g_pool.u_r = UIRoi(r_x,r_y,r_w,r_h,new_size)
-        """
+
         if tuple(size) != tuple(new_size):
             logger.warning(
                 "{} resolution capture mode not available. Selected {}.".format(
@@ -397,15 +396,6 @@ class Aravis_Source(Base_Source):
         else:
             logger.warning("Feature type not implemented: %s"%ntype)
 
-        """
-        # the set_feature function in python-aravis doesn't work
-        # here is a workaround inspired by arv-tool sourcecode
-        feat = self.dev.get_feature(name)
-        if feat is None:
-            return
-        feat.set_value(value)
-        return feat.get_value()
-        """
 
     def get_feature(self, name):
 
@@ -423,13 +413,6 @@ class Aravis_Source(Base_Source):
             return self.dev.get_integer_feature_value(name)
         else:
             logger.warning("Feature type not implemented: %s", ntype)
-
-        """
-        feat = self.dev.get_feature(name)
-        if feat is None:
-            return
-        return feat.get_value()
-        """
 
     @property
     def frame_rate(self):
@@ -645,7 +628,7 @@ class Aravis_Manager(Base_Manager):
             "frame_size": self.g_pool.capture.frame_size,
             "frame_rate": self.g_pool.capture.frame_rate,
             "exposure_time": 4000,
-            "global_gain": 0,
+            "global_gain": 4,
             "uid": source_uid,
         }
         if self.g_pool.process == "world":
