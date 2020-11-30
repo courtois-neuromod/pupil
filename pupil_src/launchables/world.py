@@ -116,6 +116,8 @@ def world(
 
         IPCLoggingPatch.ipc_push_url = ipc_push_url
 
+        from OpenGL.GL import GL_COLOR_BUFFER_BIT
+
         # display
         import glfw
 
@@ -159,6 +161,7 @@ def world(
 
         from gaze_mapping import registered_gazer_classes
         from gaze_mapping.gazer_base import GazerBase
+        from pupil_detector_plugins.detector_base_plugin import PupilDetectorPlugin
         from fixation_detector import Fixation_Detector
         from recorder import Recorder
         from display_recent_gaze import Display_Recent_Gaze
@@ -239,6 +242,9 @@ def world(
         runtime_plugins = import_runtime_plugins(
             os.path.join(g_pool.user_dir, "plugins")
         )
+        runtime_plugins = [
+            p for p in runtime_plugins if not issubclass(p, PupilDetectorPlugin)
+        ]
         user_plugins = [
             Pupil_Groups,
             NetworkApiPlugin,
@@ -380,7 +386,7 @@ def world(
 
             # Always clear buffers on resize to make sure that there are no overlapping
             # artifacts from previous frames.
-            gl_utils.glClear(gl_utils.GL_COLOR_BUFFER_BIT)
+            gl_utils.glClear(GL_COLOR_BUFFER_BIT)
             gl_utils.glClearColor(0, 0, 0, 1)
 
             content_scale = gl_utils.get_content_scale(window)
