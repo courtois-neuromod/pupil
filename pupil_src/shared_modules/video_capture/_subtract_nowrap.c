@@ -1,5 +1,5 @@
 #include "Python.h"
-#include "math.h"
+//#include "math.h"
 #include "numpy/ndarraytypes.h"
 #include "numpy/ufuncobject.h"
 #include "numpy/npy_3kcompat.h"
@@ -18,7 +18,7 @@
  * 'Extending and Embedding' and 'Python/C API' at
  * docs.python.org .
  *
- * BUILD with `python setup.py build_ext --inplace`
+ * BUILD with `python3 setup.py build_ext --inplace`
  *
  */
 
@@ -33,20 +33,19 @@ static void subtract_nowrap_uint8(char **args, npy_intp *dimensions,
 {
     npy_intp i;
     npy_intp n = dimensions[0];
-    npy_uint8 *in1 = args[0], *in2 = args[1], *out = args[2];
-    npy_intp in1_step = steps[0], in2_step = steps[1], out_step = steps[2];
+    npy_uint8 *in1 = args[0], *in2 = args[1];
+    npy_intp in1_step = steps[0], in2_step = steps[1];
 
     for (i = 0; i < n; i++) {
         /*BEGIN main ufunc computation*/
         if (*in1 > *in2){
-          *out = *in1 - *in2;
+          *in1 -= *in2;
         } else {
-          *out = 0;
+          *in1 = 0;
         }
 
         in1 += in1_step;
         in2 += in2_step;
-        out += out_step;
     }
 }
 
@@ -54,7 +53,7 @@ static void subtract_nowrap_uint8(char **args, npy_intp *dimensions,
 PyUFuncGenericFunction funcs[1] = {&subtract_nowrap_uint8};
 
 /* These are the input and return dtypes of logit.*/
-static char types[3] = {NPY_UINT8, NPY_UINT8, NPY_UINT8};
+static char types[2] = {NPY_UINT8, NPY_UINT8};
 
 static void *data[1] = {NULL};
 
@@ -82,7 +81,7 @@ PyMODINIT_FUNC PyInit__npufunc(void)
     import_array();
     import_umath();
 
-    subtract_nowrap = PyUFunc_FromFuncAndData(funcs, data, types, 1, 2, 1,
+    subtract_nowrap = PyUFunc_FromFuncAndData(funcs, data, types, 1, 2, 0,
                                     PyUFunc_None, "subtract_nowrap",
                                     "subtract_nowrap_docstring", 0);
 
