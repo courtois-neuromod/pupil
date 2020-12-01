@@ -17,7 +17,7 @@ from .base_backend import InitialisationError, Base_Source, Base_Manager, Source
 from camera_models import Camera_Model
 from .utils import Check_Frame_Stripes, Exposure_Time
 
-from ._npufunc import subtract_nowrap
+#from ._npufunc import subtract_nowrap
 
 import gi
 gi.require_version('Aravis', '0.8')
@@ -247,7 +247,7 @@ class Aravis_Source(Base_Source):
         nbuffers = self.stream.get_n_buffers()
         if nbuffers[0] == 0:
             logger.error("Buffer overflow")
-        elif nbuffers[0] > self.nbuffers < .1:
+        elif nbuffers[0] < self.nbuffers * .1:
             logger.warning("Buffer close to overflow")
         data = None
         if buf:
@@ -275,7 +275,8 @@ class Aravis_Source(Base_Source):
             self.exposure_time = self.exposure_time_backup
 
         if not self.dark_image is None:
-            subtract_nowrap(data, self.dark_image, data)
+                data -= np.minimum(data,self.dark_image) # this is faster than custom ufunc
+                #subtract_nowrap(data, self.dark_image)
 
         return Frame(ts*1e-9 + self.timestamp_offset, data, index)
 
