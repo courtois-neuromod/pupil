@@ -817,10 +817,10 @@ def eye(
             plugin.alive = False
         g_pool.plugins.clean()
 
-        glfw.destroy_window(main_window)
-        g_pool.gui.terminate()
-        glfw.terminate()
-        logger.info("Process shutting down.")
+    glfw.destroy_window(main_window)
+    g_pool.gui.terminate()
+    glfw.terminate()
+    logger.info("Process shutting down.")
 
 
 def eye_profiled(
