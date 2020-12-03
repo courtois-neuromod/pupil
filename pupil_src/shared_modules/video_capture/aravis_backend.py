@@ -120,11 +120,12 @@ class Aravis_Source(Base_Source):
                 raise RuntimeError("Error creating stream")
             self.payload = 0
 
-            self.stream.set_property('packet_timeout', 2000000)
-            self.stream.set_property("socket-buffer", Aravis.GvStreamSocketBuffer.AUTO)
-            self.stream.set_property("packet-resend", Aravis.GvStreamPacketResend.ALWAYS)
+            self.stream.set_property('packet_timeout', 1000000)
+            self.stream.set_property('frame-retention', 1000000)
+            #self.stream.set_property("socket-buffer", Aravis.GvStreamSocketBuffer.AUTO)
+            #self.stream.set_property("packet-resend", Aravis.GvStreamPacketResend.ALWAYS)
             self.stream.set_property("socket-buffer-size", 1048576)
-            self.set_feature('GevSCPSPacketSize', 9152)
+            self.set_feature('GevSCPSPacketSize', 9136)
             #self.dev.auto_packet_size()
             #self.set_feature('PixelMappingFormat', 'LowBits')
             self.current_frame_idx = 0
