@@ -122,7 +122,7 @@ class Aravis_Source(Base_Source):
         if self.cam:
 
             self.dev = self.cam.get_device()
-            self.stream = self.cam.create_stream(stream_cb, None)
+            self.stream = self.cam.create_stream(None, None)
             if self.stream is None:
                 raise RuntimeError("Error creating stream")
             self.payload = 0
