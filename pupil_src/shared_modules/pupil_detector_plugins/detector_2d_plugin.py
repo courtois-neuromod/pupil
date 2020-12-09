@@ -60,6 +60,8 @@ class Detector2DPlugin(PupilDetectorPlugin):
     ):
         super().__init__(g_pool=g_pool)
         self.detector_2d = detector_2d or Detector2D(properties or {})
+        self._subsample_fps = 0
+        self._last_detect_timestamp = 0
 
     def detect(self, frame, **kwargs):
         if self._subsample_fps > 0 and frame.timestamp > self._last_detect_timestamp:
@@ -99,6 +101,15 @@ class Detector2DPlugin(PupilDetectorPlugin):
 
         return datum
 
+    @property
+    def subsample_fps(self):
+        return self._subsample_fps
+
+    @subsample_fps.setter
+    def subsample_fps(self, subsample_fps):
+        self._subsample_fps = subsample_fps
+
+
     def init_ui(self):
         super().init_ui()
         self.menu.label = self.pretty_class_name
@@ -136,6 +147,17 @@ class Detector2DPlugin(PupilDetectorPlugin):
                 label="Pupil max",
                 min=50,
                 max=400,
+                step=1,
+            )
+        )
+
+        self.menu.append(
+            ui.Slider(
+                "subsample_fps",
+                self,
+                label="subsample FPS",
+                min=0,
+                max=250,
                 step=1,
             )
         )
