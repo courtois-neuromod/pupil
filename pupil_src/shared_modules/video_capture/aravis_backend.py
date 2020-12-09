@@ -64,6 +64,13 @@ class Frame(object):
             self._gray = (self._img.sum(2)/3).astype(np.uint8)
         return self._gray
 
+def stream_cb(user_data, cb_type, buffer):
+    if cb_type == Aravis.StreamCallbackType.INIT:
+        if not Aravis.make_thread_realtime(10) and \
+            not Aravis.make_thread_high_priority(-10):
+            print("Failed to make stream thread high priority")
+
+
 class Aravis_Source(Base_Source):
     """
     Aravis_Source is a class that encapsulates python-aravis
@@ -120,12 +127,13 @@ class Aravis_Source(Base_Source):
                 raise RuntimeError("Error creating stream")
             self.payload = 0
 
-            self.stream.set_property('packet_timeout', 2000000)
-            self.stream.set_property("socket-buffer", Aravis.GvStreamSocketBuffer.AUTO)
-            self.stream.set_property("packet-resend", Aravis.GvStreamPacketResend.ALWAYS)
+            self.stream.set_property('packet_timeout', 1000000)
+            self.stream.set_property('frame_retention', 1000000)
+            #self.stream.set_property("socket-buffer", Aravis.GvStreamSocketBuffer.AUTO)
+            #self.stream.set_property("packet-resend", Aravis.GvStreamPacketResend.ALWAYS) # not supported by MRC camera
             self.stream.set_property("socket-buffer-size", 1048576)
-            #self.set_feature('GevSCPSPacketSize', 9152)
-            self.dev.auto_packet_size()
+            self.set_feature('GevSCPSPacketSize', 9136)
+            #self.dev.auto_packet_size()
             #self.set_feature('PixelMappingFormat', 'LowBits')
             self.current_frame_idx = 0
 
