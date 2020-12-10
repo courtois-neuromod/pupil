@@ -110,11 +110,9 @@ class Aravis_Source(Base_Source):
                 self.cam = Aravis.Camera.new(uid)
                 #self.aravis_capture = aravis.Camera(uid)
             #except aravis.AravisException as e:
-            except TypeError as e:
-                logger.warning(
-                    "No Aravis camera found or error in initialization"
-                )
-                logger.warning(str(e))
+            except Exception as e:
+                logger.error("No Aravis camera found or error in initialization")
+                logger.error(str(e))
 
         self.uid = uid
         self.frame_size_backup = frame_size
