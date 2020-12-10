@@ -87,6 +87,10 @@ class Aravis_Source(Base_Source):
         uid=None,
         exposure_mode="manual",
         nbuffers=1000,
+        packet_timeout=100000,
+        frame_retention=100000,
+        socket_buffer_size=1048576,
+        gev_packet_size=1500,
         *args,
         **kwargs,
     ):
@@ -127,12 +131,12 @@ class Aravis_Source(Base_Source):
                 raise RuntimeError("Error creating stream")
             self.payload = 0
 
-            self.stream.set_property('packet_timeout', 1000000)
-            self.stream.set_property('frame_retention', 1000000)
+            self.stream.set_property('packet_timeout', packet_timeout)
+            self.stream.set_property('frame_retention', frame_retention)
             #self.stream.set_property("socket-buffer", Aravis.GvStreamSocketBuffer.AUTO)
             #self.stream.set_property("packet-resend", Aravis.GvStreamPacketResend.ALWAYS) # not supported by MRC camera
-            self.stream.set_property("socket-buffer-size", 1048576)
-            self.set_feature('GevSCPSPacketSize', 9136)
+            self.stream.set_property("socket-buffer-size", socket_buffer_size)
+            self.set_feature('GevSCPSPacketSize', gev_packet_size)
             #self.dev.auto_packet_size()
             #self.set_feature('PixelMappingFormat', 'LowBits')
             self.current_frame_idx = 0
