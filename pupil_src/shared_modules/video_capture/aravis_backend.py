@@ -87,10 +87,10 @@ class Aravis_Source(Base_Source):
         uid=None,
         exposure_mode="manual",
         nbuffers=1000,
-        packet_timeout=100000,
-        frame_retention=100000,
+        packet_timeout=1000000,
+        frame_retention=1000000,
         socket_buffer_size=1048576,
-        gev_packet_size=1500,
+        gev_packet_size=9136,
         *args,
         **kwargs,
     ):
