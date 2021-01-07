@@ -233,8 +233,6 @@ class Base_Source(Plugin):
                 self.g_pool.image_tex.update_from_yuv_buffer(
                     frame.yuv_buffer, frame.width, frame.height
                 )
-            elif frame.gray is not None:
-                self.g_pool.image_tex.update_from_ndarray(frame.gray)
             else:
                 self.g_pool.image_tex.update_from_ndarray(frame.bgr)
             gl_utils.glFlush()
