@@ -17,6 +17,7 @@ from .base_backend import InitialisationError, Base_Source, Base_Manager, Source
 from camera_models import Camera_Model
 from .utils import Check_Frame_Stripes, Exposure_Time
 
+import gl_utils
 #from ._npufunc import subtract_nowrap
 
 import gi
@@ -90,7 +91,7 @@ class Aravis_Source(Base_Source):
         packet_timeout=100000,
         frame_retention=100000,
         socket_buffer_size=1048576,
-        gev_packet_size=1500,
+        gev_packet_size=1400,
         *args,
         **kwargs,
     ):
@@ -582,6 +583,24 @@ class Aravis_Source(Base_Source):
         self.g_pool.quickbar = ui.Stretching_Menu("Quick Bar", (0, 100), (100, -100))
         self.g_pool.quickbar.insert(0, self.startstop)
         self.g_pool.gui.append(self.g_pool.quickbar)
+
+    #override base gl_display to send grayscale images to pyglui/opengl without conversion required
+    def gl_display(self):
+        if self._recent_frame is not None:
+            frame = self._recent_frame
+            if frame.gray is not None:
+                self.g_pool.image_tex.update_from_ndarray(frame.gray)
+            else:
+                self.g_pool.image_tex.update_from_ndarray(frame.bgr)
+            gl_utils.glFlush()
+        should_flip = getattr(self.g_pool, "flip", False)
+        gl_utils.make_coord_system_norm_based(flip=should_flip)
+        self.g_pool.image_tex.draw()
+        if not self.online:
+            cygl.utils.draw_gl_texture(np.zeros((1, 1, 3), dtype=np.uint8), alpha=0.4)
+        gl_utils.make_coord_system_pixel_based(
+            (self.frame_size[1], self.frame_size[0], 3), flip=should_flip
+        )
 
     def cleanup(self):
         if self.cam:
