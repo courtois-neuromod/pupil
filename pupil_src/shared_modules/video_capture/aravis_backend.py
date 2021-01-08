@@ -206,7 +206,8 @@ class Aravis_Source(Base_Source):
         # set exposure to the minimum, should work in semi-dark environment
         self.exposure_time_backup = self.exposure_time
         self.exposure_time = 0
-        #self._set_dark_image = True
+        self._set_dark_image = True
+        time.sleep(.1)
 
         self.cam.start_acquisition()
         first_buf_os_time = self.g_pool.get_timestamp() # get approximate time of the first buffer
