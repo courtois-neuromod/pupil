@@ -18,6 +18,7 @@ from camera_models import Camera_Model
 from .utils import Check_Frame_Stripes, Exposure_Time
 
 import gl_utils
+from pyglui import cygl, ui
 #from ._npufunc import subtract_nowrap
 
 import gi
