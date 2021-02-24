@@ -259,20 +259,20 @@ class Aravis_Source(Base_Source):
         buf = self.stream.try_pop_buffer()
         nbuffers = self.stream.get_n_buffers()
         if nbuffers[0] == 0:
-            logger.error("Buffer overflow")
+            logger.debug("Buffer overflow")
         elif nbuffers[0] < self.nbuffers * .1:
-            logger.warning("Buffer close to overflow")
+            logger.debug("Buffer close to overflow")
         data = None
         if buf:
             payload_type = buf.get_payload_type()
             if payload_type != Aravis.BufferPayloadType.IMAGE:
-                logger.warning("Buffer with payload of type %s"%payload_type.value_nick)
+                logger.debug("Buffer with payload of type %s"%payload_type.value_nick)
             buffer_status = buf.get_status()
             if buffer_status == Aravis.BufferStatus.SUCCESS:
                 data = self._array_from_buffer_address(buf)
                 ts = buf.get_timestamp()
             else:
-                logger.warning('Buffer STATUS: %s'%buffer_status.value_nick)
+                logger.debug('Buffer STATUS: %s'%buffer_status.value_nick)
             self.stream.push_buffer(buf)
 
         if data is None:
