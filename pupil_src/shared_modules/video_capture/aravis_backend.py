@@ -17,6 +17,8 @@ from .base_backend import InitialisationError, Base_Source, Base_Manager, Source
 from camera_models import Camera_Model
 from .utils import Check_Frame_Stripes, Exposure_Time
 
+import gl_utils
+from pyglui import cygl, ui
 #from ._npufunc import subtract_nowrap
 
 import gi
@@ -206,7 +208,8 @@ class Aravis_Source(Base_Source):
         # set exposure to the minimum, should work in semi-dark environment
         self.exposure_time_backup = self.exposure_time
         self.exposure_time = 0
-        #self._set_dark_image = True
+        self._set_dark_image = True
+        time.sleep(.1)
 
         self.cam.start_acquisition()
         first_buf_os_time = self.g_pool.get_timestamp() # get approximate time of the first buffer
@@ -256,20 +259,20 @@ class Aravis_Source(Base_Source):
         buf = self.stream.try_pop_buffer()
         nbuffers = self.stream.get_n_buffers()
         if nbuffers[0] == 0:
-            logger.error("Buffer overflow")
+            logger.debug("Buffer overflow")
         elif nbuffers[0] < self.nbuffers * .1:
-            logger.warning("Buffer close to overflow")
+            logger.debug("Buffer close to overflow")
         data = None
         if buf:
             payload_type = buf.get_payload_type()
             if payload_type != Aravis.BufferPayloadType.IMAGE:
-                logger.warning("Buffer with payload of type %s"%payload_type.value_nick)
+                logger.debug("Buffer with payload of type %s"%payload_type.value_nick)
             buffer_status = buf.get_status()
             if buffer_status == Aravis.BufferStatus.SUCCESS:
                 data = self._array_from_buffer_address(buf)
                 ts = buf.get_timestamp()
             else:
-                logger.warning('Buffer STATUS: %s'%buffer_status.value_nick)
+                logger.debug('Buffer STATUS: %s'%buffer_status.value_nick)
             self.stream.push_buffer(buf)
 
         if data is None:
@@ -581,6 +584,24 @@ class Aravis_Source(Base_Source):
         self.g_pool.quickbar = ui.Stretching_Menu("Quick Bar", (0, 100), (100, -100))
         self.g_pool.quickbar.insert(0, self.startstop)
         self.g_pool.gui.append(self.g_pool.quickbar)
+
+    #override base gl_display to send grayscale images to pyglui/opengl without conversion required
+    def gl_display(self):
+        if self._recent_frame is not None:
+            frame = self._recent_frame
+            if frame.gray is not None:
+                self.g_pool.image_tex.update_from_ndarray(frame.gray)
+            else:
+                self.g_pool.image_tex.update_from_ndarray(frame.bgr)
+            gl_utils.glFlush()
+        should_flip = getattr(self.g_pool, "flip", False)
+        gl_utils.make_coord_system_norm_based(flip=should_flip)
+        self.g_pool.image_tex.draw()
+        if not self.online:
+            cygl.utils.draw_gl_texture(np.zeros((1, 1, 3), dtype=np.uint8), alpha=0.4)
+        gl_utils.make_coord_system_pixel_based(
+            (self.frame_size[1], self.frame_size[0], 3), flip=should_flip
+        )
 
     def cleanup(self):
         if self.cam:
