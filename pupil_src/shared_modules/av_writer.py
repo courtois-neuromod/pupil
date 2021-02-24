@@ -297,11 +297,12 @@ class X265_Writer(AV_Writer):
         self.video_stream.bit_rate = BIT_RATE
         self.video_stream.bit_rate_tolerance = BIT_RATE / 20
 
-        self.video_stream.options = dict(
-            preset='ultrafast',
-            crf='18',
-            #tune='zerolatency',
-            )
+        self.video_stream.options = {
+            'preset':'ultrafast',
+            'crf': '18',
+            'x265-params': 'log-level=error',
+            'tune': 'zerolatency',
+            }
 
     @property
     def supported_extensions(self):
