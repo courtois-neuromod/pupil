@@ -126,6 +126,10 @@ class Aravis_Source(Base_Source):
         if self.cam:
 
             self.dev = self.cam.get_device()
+
+            #packet size needs to be set before creating stream
+            self.set_feature('GevSCPSPacketSize', gev_packet_size)
+            
             self.stream = self.cam.create_stream(None, None)
             if self.stream is None:
                 raise RuntimeError("Error creating stream")
@@ -136,7 +140,6 @@ class Aravis_Source(Base_Source):
             #self.stream.set_property("socket-buffer", Aravis.GvStreamSocketBuffer.AUTO)
             #self.stream.set_property("packet-resend", Aravis.GvStreamPacketResend.ALWAYS) # not supported by MRC camera
             self.stream.set_property("socket-buffer-size", socket_buffer_size)
-            self.set_feature('GevSCPSPacketSize', gev_packet_size)
             #self.dev.auto_packet_size()
             #self.set_feature('PixelMappingFormat', 'LowBits')
             self.current_frame_idx = 0
