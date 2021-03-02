@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2020 Pupil Labs
+Copyright (C) 2012-2021 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -81,7 +81,11 @@ def _load_audio_single(file_path, return_pts_based_timestamps=False):
             ),
             dtype=float,
         )
-        container.seek(0)
+        try:
+            container.seek(0)
+        except av.AVError as err:
+            logger.debug(f"{err}")
+            return None
 
     return LoadedAudio(container, stream, timestamps)
 

@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2020 Pupil Labs
+Copyright (C) 2012-2021 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -21,8 +21,9 @@ import pyglui.cygl.utils as pyglui_utils
 
 import gl_utils
 import glfw
+from gl_utils import GLFWErrorReporting
 
-glfw.ERROR_REPORTING = "raise"
+GLFWErrorReporting.set_default()
 
 from .surface_marker import Surface_Marker_Type
 

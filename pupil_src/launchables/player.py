@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2020 Pupil Labs
+Copyright (C) 2012-2021 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -73,8 +73,9 @@ def player(
 
         # display
         import glfw
+        from gl_utils import GLFWErrorReporting
 
-        glfw.ERROR_REPORTING = "raise"
+        GLFWErrorReporting.set_default()
 
         # check versions for our own depedencies as they are fast-changing
         from pyglui import __version__ as pyglui_version
@@ -137,7 +138,7 @@ def player(
         )
 
         assert parse_version(pyglui_version) >= parse_version(
-            "1.28"
+            "1.29"
         ), "pyglui out of date, please upgrade to newest version"
 
         process_was_interrupted = False
@@ -374,7 +375,6 @@ def player(
         glfw.init()
         glfw.window_hint(glfw.SCALE_TO_MONITOR, glfw.TRUE)
         main_window = glfw.create_window(width, height, window_name, None, None)
-
         window_position_manager = gl_utils.WindowPositionManager()
         window_pos = window_position_manager.new_window_position(
             window=main_window,
@@ -572,6 +572,18 @@ def player(
         g_pool.gui.append(g_pool.quickbar)
 
         # we always load these plugins
+        _pupil_producer_plugins = [
+            # In priority order (first is default)
+            ("Pupil_From_Recording", {}),
+            ("Offline_Pupil_Detection", {}),
+        ]
+        _pupil_producer_plugins = list(reversed(_pupil_producer_plugins))
+        _gaze_producer_plugins = [
+            # In priority order (first is default)
+            ("GazeFromRecording", {}),
+            ("GazeFromOfflineCalibration", {}),
+        ]
+        _gaze_producer_plugins = list(reversed(_gaze_producer_plugins))
         default_plugins = [
             ("Plugin_Manager", {}),
             ("Seek_Control", {}),
@@ -582,14 +594,25 @@ def player(
             ("System_Graphs", {}),
             ("System_Timelines", {}),
             ("World_Video_Exporter", {}),
-            ("Pupil_From_Recording", {}),
-            ("GazeFromRecording", {}),
+            *_pupil_producer_plugins,
+            *_gaze_producer_plugins,
             ("Audio_Playback", {}),
         ]
+        _plugins_to_load = session_settings.get("loaded_plugins", None)
+        if _plugins_to_load is None:
+            # If no plugins are available from a previous session,
+            # then use the default plugin list
+            _plugins_to_load = default_plugins
+        else:
+            # If there are plugins available from a previous session,
+            # then prepend plugins that are required, but might have not been available before
+            _plugins_to_load = [
+                *_pupil_producer_plugins,
+                *_gaze_producer_plugins,
+                *_plugins_to_load,
+            ]
 
-        g_pool.plugins = Plugin_List(
-            g_pool, session_settings.get("loaded_plugins", default_plugins)
-        )
+        g_pool.plugins = Plugin_List(g_pool, _plugins_to_load)
 
         # Manually add g_pool.capture to the plugin list
         g_pool.plugins._plugins.append(g_pool.capture)
@@ -808,8 +831,9 @@ def player_drop(
 
     try:
         import glfw
+        from gl_utils import GLFWErrorReporting
 
-        glfw.ERROR_REPORTING = "raise"
+        GLFWErrorReporting.set_default()
 
         import gl_utils
         from OpenGL.GL import glClearColor

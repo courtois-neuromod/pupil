@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2020 Pupil Labs
+Copyright (C) 2012-2021 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -16,15 +16,17 @@ from pyglui.cygl.utils import draw_gl_texture
 
 import glfw
 
-glfw.ERROR_REPORTING = "raise"
-
 from gl_utils import (
     adjust_gl_view,
     basic_gl_setup,
     clear_gl_screen,
     make_coord_system_norm_based,
     make_coord_system_pixel_based,
+    GLFWErrorReporting,
 )
+
+GLFWErrorReporting.set_default()
+
 from methods import normalize
 from plugin import Plugin
 

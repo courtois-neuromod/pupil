@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2020 Pupil Labs
+Copyright (C) 2012-2021 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -27,10 +27,10 @@ from pyglui.pyfontstash import fontstash
 from pyglui.ui import get_opensans_font_path
 
 import glfw
-
-glfw.ERROR_REPORTING = "raise"
-
 import gl_utils
+from gl_utils import GLFWErrorReporting
+
+GLFWErrorReporting.set_default()
 
 from plugin import Plugin
 
