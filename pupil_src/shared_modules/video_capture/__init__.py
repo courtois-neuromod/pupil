@@ -54,13 +54,10 @@ else:
     manager_classes.append(NDSI_Manager)
 
 try:
-    import gi
-    gi.require_version('Aravis', '0.8')
-    from gi.repository import Aravis
     from .aravis_backend import Aravis_Source, Aravis_Manager
-except ImportError as ie:
+except ValueError as ie:
     logger.info(
-        "Install aravis and python-aravis to use the Aravis backend"
+        "Install aravis to use the Aravis backend"
     )
 else:
     source_classes.append(Aravis_Source)
