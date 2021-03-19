@@ -57,6 +57,11 @@ class Frame(object):
     @property
     def bgr(self):
         if self._img is None and self._gray is not None:
+
+            self._img = np.lib.stride_tricks.as_strided(
+                self._gray,
+                self._gray.shape + (3,),
+                self._gray.shape + (0,))
             self._img = np.repeat(self._gray[..., np.newaxis], 3, 2)
         return self._img
 
@@ -129,7 +134,7 @@ class Aravis_Source(Base_Source):
 
             #packet size needs to be set before creating stream
             self.set_feature('GevSCPSPacketSize', gev_packet_size)
-            
+
             self.stream = self.cam.create_stream(None, None)
             if self.stream is None:
                 raise RuntimeError("Error creating stream")
