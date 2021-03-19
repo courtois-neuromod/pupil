@@ -57,7 +57,7 @@ class Frame(object):
     @property
     def bgr(self):
         if self._img is None and self._gray is not None:
-            self._img = np.repeat(self._gray[..., np.newaxis], 3, 2)
+            self._img = np.tile(self._gray[..., np.newaxis], (1, 1, 3))
         return self._img
 
     @property
@@ -93,6 +93,7 @@ class Aravis_Source(Base_Source):
         frame_retention=1000000,
         socket_buffer_size=1048576,
         gev_packet_size=9136,
+        auto_noise_suppression=False,
         *args,
         **kwargs,
     ):
@@ -117,6 +118,7 @@ class Aravis_Source(Base_Source):
                 logger.error(str(e))
 
         self.uid = uid
+        self.auto_noise_suppression = auto_noise_suppression
         self.frame_size_backup = frame_size
         self.frame_rate_backup = frame_rate
         self.exposure_time_backup = exposure_time
@@ -129,7 +131,7 @@ class Aravis_Source(Base_Source):
 
             #packet size needs to be set before creating stream
             self.set_feature('GevSCPSPacketSize', gev_packet_size)
-            
+
             self.stream = self.cam.create_stream(None, None)
             if self.stream is None:
                 raise RuntimeError("Error creating stream")
@@ -211,7 +213,7 @@ class Aravis_Source(Base_Source):
         # set exposure to the minimum, should work in semi-dark environment
         self.exposure_time_backup = self.exposure_time
         self.exposure_time = 0
-        self._set_dark_image = True
+        self._set_dark_image = self.auto_noise_suppression
         time.sleep(.1)
 
         self.cam.start_acquisition()
