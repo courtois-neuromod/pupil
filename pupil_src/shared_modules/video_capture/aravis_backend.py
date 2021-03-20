@@ -594,7 +594,11 @@ class Aravis_Source(Base_Source):
     def gl_display(self):
         if self._recent_frame is not None:
             frame = self._recent_frame
-            if frame.gray is not None:
+            if (
+                frame.gray is not None and
+                # TODO: Find a better solution than this:
+                and getattr(self.g_pool, "display_mode", "") != "algorithm"
+            ):
                 self.g_pool.image_tex.update_from_ndarray(frame.gray)
             else:
                 self.g_pool.image_tex.update_from_ndarray(frame.bgr)
