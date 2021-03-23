@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2020 Pupil Labs
+Copyright (C) 2012-2021 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -565,8 +565,10 @@ class CalibrationChoreographyPlugin(Plugin):
             )
             return
 
-        # Reset the main window size to trigger a redraw with correct size and scale
-        self.g_pool.trigger_main_window_redraw()
+        if self.g_pool.app == "capture":
+            # Reset the main window size to trigger a redraw with correct size and scale
+            # Only run in Capture to fix https://github.com/pupil-labs/pupil/issues/2119
+            self.g_pool.trigger_main_window_redraw()
 
         current_mode = self.__current_mode
         pupil_list = self.__pupil_list

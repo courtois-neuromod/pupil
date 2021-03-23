@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2020 Pupil Labs
+Copyright (C) 2012-2021 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -703,7 +703,9 @@ def world(
             return next(window_update_timer)
 
         # trigger setup of window and gl sizes
-        g_pool.trigger_main_window_redraw = lambda: on_resize(main_window, *glfw.get_framebuffer_size(main_window))
+        g_pool.trigger_main_window_redraw = lambda: on_resize(
+            main_window, *glfw.get_framebuffer_size(main_window)
+        )
         g_pool.trigger_main_window_redraw()
 
         if session_settings.get("eye1_process_alive", True):
