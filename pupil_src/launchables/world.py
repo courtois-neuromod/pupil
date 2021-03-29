@@ -320,6 +320,7 @@ def world(
             ("Pupil_Data_Relay", {}),
             ("UVC_Manager", {}),
             ("NDSI_Manager", {}),
+            ("Aravis_Manager", {}),
             ("HMD_Streaming_Manager", {}),
             ("File_Manager", {}),
             ("Log_Display", {}),
