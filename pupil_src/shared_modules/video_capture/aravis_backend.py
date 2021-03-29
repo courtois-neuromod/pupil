@@ -641,7 +641,6 @@ class Aravis_Manager(Base_Manager):
         n = Aravis.get_n_devices()
         self.devices = [Aravis.get_device_id(i) for i in range(0, n)]
 
-        print(self.devices)
         return [
             SourceInfo(
                 label=f"{device} @ Aravis",
