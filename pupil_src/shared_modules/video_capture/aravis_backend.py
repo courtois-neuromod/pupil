@@ -27,7 +27,10 @@ from gi.repository import Aravis
 
 # logging
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
+
+#import pyximport; pyximport.install()
+#from .aravis_cb import stream_hp_cb
 
 class AravisException(Exception):
     pass
@@ -104,52 +107,69 @@ class Aravis_Source(Base_Source):
         self._set_dark_image = False
         self.dark_image = None
 
-        logger.warning(
-            "Activating camera: %s" % uid
-        )
-        # if uid is supplied we init with that
-        if uid:
-            try:
-                self.cam = Aravis.Camera.new(uid)
-                #self.aravis_capture = aravis.Camera(uid)
-            #except aravis.AravisException as e:
-            except Exception as e:
-                logger.error("No Aravis camera found or error in initialization")
-                logger.error(str(e))
 
         self.uid = uid
         self.auto_noise_suppression = auto_noise_suppression
         self.frame_size_backup = frame_size
-        self.frame_rate_backup = frame_rate
+        self.frame_rate_backup = frame_rate if frame_rate else 250
+        print(self.frame_rate_backup)
         self.exposure_time_backup = exposure_time
         self.global_gain_backup = global_gain
         self.nbuffers = nbuffers
+        self.pop_buffer_timeout = 1
+
+        # stream parameters
+        self.gev_packet_size = gev_packet_size
+        self.packet_timeout = packet_timeout
+        self.frame_retention = frame_retention
+        self.socket_buffer_size = socket_buffer_size
+
+        logger.warning(
+            "Activating camera: %s" % uid
+        )
+
+
+        self.activate_camera()
+
+    def activate_camera(self):
+
+        if self.status:
+            self._stop_capture()
+
+        # if uid is supplied we init with that
+        if self.uid:
+            try:
+                self.cam = Aravis.Camera.new(self.uid)
+            except Exception as e:
+                logger.error("No Aravis camera found or error in initialization")
+                logger.error(str(e))
 
         if self.cam:
 
             self.dev = self.cam.get_device()
 
             #packet size needs to be set before creating stream
-            self.set_feature('GevSCPSPacketSize', gev_packet_size)
+            self.set_feature('GevSCPSPacketSize', self.gev_packet_size)
 
-            self.stream = self.cam.create_stream(None, None)
+            #self.stream = self.cam.create_stream(None)
+            self.stream = self.cam.create_hp_stream(None)
             if self.stream is None:
                 raise RuntimeError("Error creating stream")
             self.payload = 0
 
-            self.stream.set_property('packet_timeout', packet_timeout)
-            self.stream.set_property('frame_retention', frame_retention)
+            self.stream.set_property('packet_timeout', self.packet_timeout)
+            self.stream.set_property('frame_retention', self.frame_retention)
             #self.stream.set_property("socket-buffer", Aravis.GvStreamSocketBuffer.AUTO)
             #self.stream.set_property("packet-resend", Aravis.GvStreamPacketResend.ALWAYS) # not supported by MRC camera
-            self.stream.set_property("socket-buffer-size", socket_buffer_size)
+            self.stream.set_property("socket-buffer-size", self.socket_buffer_size)
             #self.dev.auto_packet_size()
             #self.set_feature('PixelMappingFormat', 'LowBits')
             self.current_frame_idx = 0
 
-            self.exposure_time = exposure_time
-            self.global_gain = global_gain
-            self.frame_size = frame_size
-            self.frame_rate = frame_rate
+            self.exposure_time = self.exposure_time_backup
+            self.global_gain = self.global_gain_backup
+            self.frame_size = self.frame_size_backup
+            self.frame_rate = self.frame_rate_backup
 
 
             # The camera is gigevision1.2, which doesn't support PTP apparently
@@ -261,12 +281,12 @@ class Aravis_Source(Base_Source):
             self._flush_buffers()
 
     def get_frame(self):
-        buf = self.stream.try_pop_buffer()
+        buf = self.stream.timeout_pop_buffer(1e6/self.frame_rate_backup * 2)
         nbuffers = self.stream.get_n_buffers()
         if nbuffers[0] == 0:
-            logger.debug("Buffer overflow")
+            logger.error("Buffer overflow")
         elif nbuffers[0] < self.nbuffers * .1:
-            logger.debug("Buffer close to overflow")
+            logger.info("Buffer close to overflow")
         data = None
         if buf:
             payload_type = buf.get_payload_type()
@@ -281,6 +301,8 @@ class Aravis_Source(Base_Source):
             self.stream.push_buffer(buf)
 
         if data is None:
+            # should mainly happen if we loop too fast, which is a good problem to have.
+            logger.debug('no frame %s' % str(nbuffers))
             return
 
         index = self.current_frame_idx
@@ -315,12 +337,11 @@ class Aravis_Source(Base_Source):
     def recent_events(self, events):
         if (self.cam is None) or (not self._status):
             return
-        frame = None
-        while frame is None:
-            frame = self.get_frame()
+        frame = self.get_frame()
 
-        self._recent_frame = frame
-        events["frame"] = frame
+        if frame is not None:
+            self._recent_frame = frame
+            events["frame"] = frame
 
     def get_init_dict(self):
         d = super().get_init_dict()
@@ -442,8 +463,10 @@ class Aravis_Source(Base_Source):
 
     @frame_rate.setter
     def frame_rate(self, new_rate):
-        rate = self.set_feature('FPS', new_rate)
-        self.frame_rate_backup = rate
+        if new_rate:
+            rate = self.set_feature('FPS', new_rate)
+            if rate:
+                self.frame_rate_backup = rate
 
     @property
     def global_gain(self):
@@ -485,7 +508,7 @@ class Aravis_Source(Base_Source):
 
     @property
     def online(self):
-        return bool(self.cam)
+        return self.status
 
     def deinit_ui(self):
         self.remove_menu()
@@ -603,6 +626,8 @@ class Aravis_Source(Base_Source):
             else:
                 self.g_pool.image_tex.update_from_ndarray(frame.bgr)
             gl_utils.glFlush()
+        else:
+            return
         should_flip = getattr(self.g_pool, "flip", False)
         gl_utils.make_coord_system_norm_based(flip=should_flip)
         self.g_pool.image_tex.draw()
