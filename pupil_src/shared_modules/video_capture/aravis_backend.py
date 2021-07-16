@@ -151,8 +151,8 @@ class Aravis_Source(Base_Source):
             #packet size needs to be set before creating stream
             self.set_feature('GevSCPSPacketSize', self.gev_packet_size)
 
-            #self.stream = self.cam.create_stream(None)
-            self.stream = self.cam.create_hp_stream(None)
+            self.stream = self.cam.create_stream(None)
+            #self.stream = self.cam.create_hp_stream(None)
             if self.stream is None:
                 raise RuntimeError("Error creating stream")
             self.payload = 0
