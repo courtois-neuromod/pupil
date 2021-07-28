@@ -92,8 +92,8 @@ class Aravis_Source(Base_Source):
         uid=None,
         exposure_mode="manual",
         nbuffers=1000,
-        packet_timeout=1000000,
-        frame_retention=1000000,
+        packet_timeout=40000,
+        frame_retention=200000,
         socket_buffer_size=1048576,
         gev_packet_size=9136,
         auto_noise_suppression=False,
@@ -161,6 +161,7 @@ class Aravis_Source(Base_Source):
             self.stream.set_property('frame_retention', self.frame_retention)
             #self.stream.set_property("socket-buffer", Aravis.GvStreamSocketBuffer.AUTO)
             #self.stream.set_property("packet-resend", Aravis.GvStreamPacketResend.ALWAYS) # not supported by MRC camera
+            self.stream.set_property("packet-resend", Aravis.GvStreamPacketResend.NEVER)
             self.stream.set_property("socket-buffer-size", self.socket_buffer_size)
             #self.dev.auto_packet_size()
             #self.set_feature('PixelMappingFormat', 'LowBits')
