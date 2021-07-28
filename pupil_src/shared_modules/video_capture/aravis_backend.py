@@ -27,7 +27,7 @@ from gi.repository import Aravis
 
 # logging
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 #import pyximport; pyximport.install()
 #from .aravis_cb import stream_hp_cb
@@ -281,12 +281,12 @@ class Aravis_Source(Base_Source):
             self._flush_buffers()
 
     def get_frame(self):
-        buf = self.stream.timeout_pop_buffer(1e6/self.frame_rate_backup * 2)
+        buf = self.stream.timeout_pop_buffer(1e6/self.frame_rate_backup)
         nbuffers = self.stream.get_n_buffers()
         if nbuffers[0] == 0:
-            logger.error("Buffer overflow")
+            logger.debug("Buffer overflow")
         elif nbuffers[0] < self.nbuffers * .1:
-            logger.info("Buffer close to overflow")
+            logger.debug("Buffer close to overflow")
         data = None
         if buf:
             payload_type = buf.get_payload_type()
