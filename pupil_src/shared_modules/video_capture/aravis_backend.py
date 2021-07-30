@@ -112,7 +112,6 @@ class Aravis_Source(Base_Source):
         self.auto_noise_suppression = auto_noise_suppression
         self.frame_size_backup = frame_size
         self.frame_rate_backup = frame_rate if frame_rate else 250
-        print(self.frame_rate_backup)
         self.exposure_time_backup = exposure_time
         self.global_gain_backup = global_gain
         self.nbuffers = nbuffers
@@ -260,6 +259,11 @@ class Aravis_Source(Base_Source):
 
         self.exposure_time = self.exposure_time_backup
         self._status = True
+        self.notify_all({
+            "subject": "aravis.start_capture.successful",
+            "target": self.g_pool.process,
+            "name": "Aravis_Source",
+            })
         logger.info('started capture successfully')
 
     def _stop_capture(self):
