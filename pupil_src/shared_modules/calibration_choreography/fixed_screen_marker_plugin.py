@@ -60,7 +60,7 @@ class FixedScreenMarkerChoreographyPlugin(ScreenMarkerChoreographyPlugin):
     Points are collected at sites - not between
     """
 
-    label = "Screen Marker Calibration"
+    label = "Fixed Screen Marker Calibration"
 
     @classmethod
     def selection_label(cls) -> str:
