@@ -27,7 +27,7 @@ from platform import system
 import audio
 
 from pyglui import ui
-from pyglui.cygl.utils import draw_points, draw_polyline, RGBA
+from pyglui.cygl.utils import draw_polyline, RGBA
 from pyglui.pyfontstash import fontstash
 from pyglui.ui import get_opensans_font_path
 
@@ -87,6 +87,7 @@ class ScreenMarkerChoreographyPlugin(
         marker_scale=1.0,
         sample_duration=40,
         monitor_name=None,
+        fixed_screen=False,
         **kwargs,
     ):
         super().__init__(g_pool, **kwargs)
@@ -95,6 +96,7 @@ class ScreenMarkerChoreographyPlugin(
         self.selected_monitor_name = monitor_name
         self.is_fullscreen = fullscreen
         self.sample_duration = sample_duration
+        self.fixed_screen = fixed_screen
 
         # Private properties
         self.__current_list_of_markers_to_show = []
@@ -166,7 +168,7 @@ class ScreenMarkerChoreographyPlugin(
         state = self.__marker_window.window_state
         should_animate = True
 
-        if not frame:
+        if not frame and not self.fixed_screen:
             return
 
         self.__marker_window.update_state()
@@ -185,7 +187,15 @@ class ScreenMarkerChoreographyPlugin(
         self.pupil_list.extend(events["pupil"])
 
         # Detect reference circle marker
-        detected_marker = self.__detect_reference_circle_marker(frame.gray)
+        if not self.fixed_screen:
+            detected_marker = self.__detect_reference_circle_marker(frame.gray)
+            detected_marker["timestamp"] = frame.timestamp
+        else:
+            detected_marker = {
+                "norm_pos": self.__currently_shown_marker_position,
+                "img_pos": self.__currently_shown_marker_position,
+                "timestamp": self.g_pool.get_timestamp(),
+            }
 
         # Signal marker window controller that a marker was detected (for feedback)
         self.__marker_window.is_marker_detected = detected_marker is not None
@@ -220,7 +230,7 @@ class ScreenMarkerChoreographyPlugin(
                 ref = {}
                 ref["norm_pos"] = detected_marker["norm_pos"]
                 ref["screen_pos"] = detected_marker["img_pos"]
-                ref["timestamp"] = frame.timestamp
+                ref["timestamp"] = detected_marker["timestamp"]
                 self.ref_list.append(ref)
 
             should_move_to_next_marker = len(self.ref_list) == self.sample_duration * (
@@ -276,9 +286,9 @@ class ScreenMarkerChoreographyPlugin(
     ### Internal
 
     def _perform_start(self):
-        if not self.g_pool.capture.online:
-            logger.error(
-                f"{self.current_mode.label} requiers world capture video input."
+        if not self.g_pool.capture.online and not self.fixed_screen:
+            logger.warning(
+                f"{self.current_mode.label} requires world capture video input."
             )
             return
 
