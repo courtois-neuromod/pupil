@@ -310,6 +310,7 @@ class MarkerWindowController(observable.Observable):
 
         radius = self.__marker_radius
         screen_point = self.__marker_position_on_screen(position)
+        self._screen_point = screen_point
 
         if is_valid:
             marker_circle_rgb_feedback = self._MARKER_CIRCLE_RGB_FEEDBACK_VALID

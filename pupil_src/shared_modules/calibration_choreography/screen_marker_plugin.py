@@ -187,15 +187,17 @@ class ScreenMarkerChoreographyPlugin(
         self.pupil_list.extend(events["pupil"])
 
         # Detect reference circle marker
+        detected_marker = None
         if not self.fixed_screen:
             detected_marker = self.__detect_reference_circle_marker(frame.gray)
             detected_marker["timestamp"] = frame.timestamp
         else:
-            detected_marker = {
-                "norm_pos": self.__currently_shown_marker_position,
-                "img_pos": self.__currently_shown_marker_position,
-                "timestamp": self.g_pool.get_timestamp(),
-            }
+            if self.__currently_shown_marker_position:
+                detected_marker = {
+                    "norm_pos": self.__currently_shown_marker_position,
+                    "img_pos": getattr(self.__marker_window, '_screen_point', None),
+                    "timestamp": self.g_pool.get_timestamp(),
+                }
 
         # Signal marker window controller that a marker was detected (for feedback)
         self.__marker_window.is_marker_detected = detected_marker is not None
@@ -268,7 +270,6 @@ class ScreenMarkerChoreographyPlugin(
             return
 
         markers = self.__previously_detected_markers
-
         for marker in markers:
             e = marker["ellipses"][-1]  # outermost ellipse
             pts = cv2.ellipse2Poly(
