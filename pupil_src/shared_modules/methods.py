@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2021 Pupil Labs
+Copyright (C) 2012-2022 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -22,7 +22,9 @@ import cv2
 import numpy as np
 
 try:
+    logging.getLogger("numexpr.utils").setLevel(logging.ERROR)
     import numexpr as ne
+
 except Exception:
     ne = None
 

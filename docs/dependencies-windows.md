@@ -58,7 +58,7 @@ python -m pip install --upgrade pip wheel
 pip install -r requirements.txt
 ```
 
-**NOTE:** `pyuvc` requires that you download Microsoft Visual C++ 2010 Redistributable from [microsoft](https://www.microsoft.com/en-us/download/details.aspx?id=14632). The `pthreadVC2` lib, which is used by libuvc, depends on `msvcr100.dll`.
+**NOTE:** `pyuvc` requires that you download Microsoft Visual C++ 2010 Redistributable from [microsoft](https://docs.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-160). The `pthreadVC2` lib, which is used by libuvc, depends on `msvcr100.dll`.
 
 ## Modifying Pupil to Work with Windows
 
@@ -90,7 +90,7 @@ The following steps require you to store dynamic libraries in the `pupil_externa
 
 #### FFMPEG
 
-- [Download FFMPEG v4.3 Windows **shared LGPL** binaries](https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2021-03-31-12-39/ffmpeg-n4.3.2-162-g4bbcaf7559-win64-lgpl-shared-4.3.zip) 
+- [Download FFMPEG v4.3 Windows **shared LGPL** binaries](https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2021-03-31-12-39/ffmpeg-n4.3.2-162-g4bbcaf7559-win64-lgpl-shared-4.3.zip)
 - Unzip `ffmpeg-*-shared-4.3.zip` to your work dir
 - Copy the following 7 `.dll` files from `ffmpeg-*-lgpl-shared-4.3\bin` to `pupil_external`
     - `avcodec-58.dll`

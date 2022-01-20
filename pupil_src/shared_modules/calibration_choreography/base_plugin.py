@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2021 Pupil Labs
+Copyright (C) 2012-2022 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -508,7 +508,7 @@ class CalibrationChoreographyPlugin(Plugin):
 
         if note.action == ChoreographyAction.SHOULD_STOP:
             if not self.is_active:
-                logger.warning(f"{self.current_mode.label} already stopped.")
+                logger.debug(f"{self.current_mode.label} already stopped.")
             else:
                 self._perform_stop()
 

@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2021 Pupil Labs
+Copyright (C) 2012-2022 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -37,6 +37,7 @@ class surface_locater_callable:
         self.camera_model = camera_model
         self.registered_markers_undist = registered_markers_undist
         self.registered_markers_dist = registered_markers_dist
+        self._context = {}
 
     def __call__(self, markers):
         markers = {m.uid: m for m in markers}
@@ -45,4 +46,5 @@ class surface_locater_callable:
             self.camera_model,
             self.registered_markers_undist,
             self.registered_markers_dist,
+            context=self._context,
         )

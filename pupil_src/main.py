@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2021 Pupil Labs
+Copyright (C) 2012-2022 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -26,6 +26,7 @@ default_args = {
     "version": False,
     "hide_ui": False,
     "port": 50020,
+    "skip_driver_installation": False,
 }
 parsed_args, unknown_args = PupilArgParser().parse(running_from_bundle, **default_args)
 
@@ -321,6 +322,7 @@ def launcher():
                             parsed_args.debug,
                             n.get("pub_socket_hwm"),
                             parsed_args.app,  # parent_application
+                            parsed_args.skip_driver_installation,
                         ),
                     ).start()
                 elif "notify.player_process.should_start" in topic:
@@ -352,6 +354,7 @@ def launcher():
                             parsed_args.port,
                             parsed_args.hide_ui,
                             parsed_args.debug,
+                            parsed_args.skip_driver_installation,
                         ),
                     ).start()
                 elif "notify.clear_settings_process.should_start" in topic:
