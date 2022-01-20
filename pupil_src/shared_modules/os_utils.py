@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2021 Pupil Labs
+Copyright (C) 2012-2022 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -30,17 +30,15 @@ if os_name == "Darwin" and mac_version >= min_version:
 
         def __enter__(self):
             self.caffeine_process = sp.Popen(["caffeinate", "-w", str(os.getpid())])
-            logger.info("Disabled idle sleep.")
+            logger.debug("Disabled idle sleep.")
 
         def __exit__(self, etype, value, tb):
             if etype is not None:
                 logger.debug("".join(traceback.format_exception(etype, value, tb)))
             self.caffeine_process.terminate()
             self.caffeine_process = None
-            logger.info("Re-enabled idle sleep.")
             # NOTE: Suppress KeyboardInterrupt
             return etype is KeyboardInterrupt
-
 
 else:
 

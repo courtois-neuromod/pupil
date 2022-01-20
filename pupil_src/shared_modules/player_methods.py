@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2021 Pupil Labs
+Copyright (C) 2012-2022 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -322,6 +322,10 @@ class PupilDataBisector:
 
     def __bool__(self):
         return any(self._bisectors.values())
+
+    def __iter__(self):
+        all_bisectors = self._bisectors.values()
+        return iter(self.combine_bisectors(all_bisectors))
 
     @staticmethod
     def combine_bisectors(bisectors: T.Iterable[pm.Bisector]) -> pm.Bisector:

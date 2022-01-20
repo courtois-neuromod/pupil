@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2021 Pupil Labs
+Copyright (C) 2012-2022 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -137,9 +137,17 @@ class Service_UI(System_Plugin_Base):
 
         g_pool.menubar.append(ui.Button("Reset window size", set_window_size))
 
-        pupil_remote_addr = "{}:{}".format(
-            socket.gethostbyname(socket.gethostname()), g_pool.preferred_remote_port
-        )
+        for *_, (ip, port, *_) in socket.getaddrinfo(
+            "localhost",
+            g_pool.preferred_remote_port,
+            family=socket.AF_INET,
+            type=socket.SOCK_STREAM,
+        ):
+            pupil_remote_addr = f"{ip}:{port}"
+            break
+        else:
+            pupil_remote_addr = "unknown"
+
         g_pool.menubar.append(
             ui.Text_Input(
                 "pupil_remote_addr",

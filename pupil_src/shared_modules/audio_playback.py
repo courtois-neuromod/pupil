@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2021 Pupil Labs
+Copyright (C) 2012-2022 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -81,14 +81,18 @@ class Audio_Playback(System_Plugin_Base):
 
         try:
             self.audio_all = load_audio(self.g_pool.rec_dir)
+            logger.debug("Audio_Playback.__init__: Audio loaded successfully")
         except NoAudioLoadedError:
+            logger.debug("Audio_Playback.__init__: No audio loaded")
             return
 
         self.calculate_audio_bounds()
 
         self.filter_graph = None
         self.filter_graph_list = None
+        logger.debug("Audio_Playback.__init__: Initializing PyAudio")
         self.pa = pa.PyAudio()
+        logger.debug("Audio_Playback.__init__: PyAudio initialized")
 
         self._setup_input_audio_part(0)
 
