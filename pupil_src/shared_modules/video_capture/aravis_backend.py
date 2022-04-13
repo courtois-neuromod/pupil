@@ -287,7 +287,7 @@ class Aravis_Source(Base_Source):
             self._flush_buffers()
 
     def get_frame(self):
-        buf = self.stream.timeout_pop_buffer(1e6/self.frame_rate_backup)
+        buf = self.stream.timeout_pop_buffer(1000000//self.frame_rate_backup)
         nbuffers = self.stream.get_n_buffers()
         if nbuffers[0] == 0:
             logger.debug("Buffer overflow")
@@ -339,6 +339,16 @@ class Aravis_Source(Base_Source):
         ptr = ctypes.cast(addr, INTP)
         im = np.ctypeslib.as_array(ptr, (buf.get_image_height(), buf.get_image_width()))
         return im.copy()
+
+
+    def on_notify(self, notification):
+        super().on_notify(notification)
+        subject = notification["subject"]
+
+        if subject == "capture.should_start":
+            self._start_capture()
+        elif subject == "capture.should_stop":
+            self._stop_capture()
 
     def recent_events(self, events):
         if (self.cam is None) or (not self._status):
