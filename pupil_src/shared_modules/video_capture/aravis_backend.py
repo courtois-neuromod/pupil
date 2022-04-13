@@ -27,7 +27,7 @@ from gi.repository import Aravis
 
 # logging
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 #import pyximport; pyximport.install()
 #from .aravis_cb import stream_hp_cb
@@ -287,12 +287,12 @@ class Aravis_Source(Base_Source):
             self._flush_buffers()
 
     def get_frame(self):
-        buf = self.stream.timeout_pop_buffer(1e6/self.frame_rate_backup * 2)
+        buf = self.stream.timeout_pop_buffer(1000000//self.frame_rate_backup)
         nbuffers = self.stream.get_n_buffers()
         if nbuffers[0] == 0:
-            logger.error("Buffer overflow")
+            logger.debug("Buffer overflow")
         elif nbuffers[0] < self.nbuffers * .1:
-            logger.info("Buffer close to overflow")
+            logger.debug("Buffer close to overflow")
         data = None
         if buf:
             payload_type = buf.get_payload_type()
@@ -339,6 +339,16 @@ class Aravis_Source(Base_Source):
         ptr = ctypes.cast(addr, INTP)
         im = np.ctypeslib.as_array(ptr, (buf.get_image_height(), buf.get_image_width()))
         return im.copy()
+
+
+    def on_notify(self, notification):
+        super().on_notify(notification)
+        subject = notification["subject"]
+
+        if subject == "capture.should_start":
+            self._start_capture()
+        elif subject == "capture.should_stop":
+            self._stop_capture()
 
     def recent_events(self, events):
         if (self.cam is None) or (not self._status):
