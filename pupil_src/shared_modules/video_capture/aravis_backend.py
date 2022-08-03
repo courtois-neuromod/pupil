@@ -94,7 +94,7 @@ class Aravis_Source(Base_Source):
         nbuffers=1000,
         packet_timeout=40000,
         frame_retention=200000,
-        socket_buffer_size=1048576,
+        socket_buffer_size=1048576000,
         gev_packet_size=9136,
         auto_noise_suppression=False,
         *args,
@@ -316,7 +316,11 @@ class Aravis_Source(Base_Source):
             self.exposure_time = self.exposure_time_backup
 
         if not self.dark_image is None:
+            if data.shape == self.dark_image.shape:
                 data -= np.minimum(data,self.dark_image) # this is faster than custom ufunc
+            else:
+                logger.error(f"received buffer with wrong size {data.shape}")
+                return
                 #subtract_nowrap(data, self.dark_image)
 
         return Frame(ts*1e-9 + self.timestamp_offset, data, index)

@@ -312,7 +312,7 @@ def world(
                 "C920",
                 "C930e",
             ],
-            "frame_size": (1280, 720),
+            "frame_size": (640, 480),
             "frame_rate": 30,
         }
 
