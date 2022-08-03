@@ -112,7 +112,6 @@ class Aravis_Source(Base_Source):
         self.auto_noise_suppression = auto_noise_suppression
         self.frame_size_backup = frame_size
         self.frame_rate_backup = frame_rate if frame_rate else 250
-        print(self.frame_rate_backup)
         self.exposure_time_backup = exposure_time
         self.global_gain_backup = global_gain
         self.nbuffers = nbuffers
@@ -162,6 +161,7 @@ class Aravis_Source(Base_Source):
             #self.stream.set_property("socket-buffer", Aravis.GvStreamSocketBuffer.AUTO)
             #self.stream.set_property("packet-resend", Aravis.GvStreamPacketResend.ALWAYS) # not supported by MRC camera
             self.stream.set_property("packet-resend", Aravis.GvStreamPacketResend.NEVER)
+            self.stream.set_property("socket-buffer", Aravis.GvStreamSocketBuffer.FIXED)
             self.stream.set_property("socket-buffer-size", self.socket_buffer_size)
             #self.dev.auto_packet_size()
             #self.set_feature('PixelMappingFormat', 'LowBits')
@@ -260,6 +260,11 @@ class Aravis_Source(Base_Source):
 
         self.exposure_time = self.exposure_time_backup
         self._status = True
+        self.notify_all({
+            "subject": "aravis.start_capture.successful",
+            "target": self.g_pool.process,
+            "name": "Aravis_Source",
+            })
         logger.info('started capture successfully')
 
     def _stop_capture(self):
@@ -282,7 +287,7 @@ class Aravis_Source(Base_Source):
             self._flush_buffers()
 
     def get_frame(self):
-        buf = self.stream.timeout_pop_buffer(1e6/self.frame_rate_backup)
+        buf = self.stream.timeout_pop_buffer(1000000//self.frame_rate_backup)
         nbuffers = self.stream.get_n_buffers()
         if nbuffers[0] == 0:
             logger.debug("Buffer overflow")
@@ -338,6 +343,16 @@ class Aravis_Source(Base_Source):
         ptr = ctypes.cast(addr, INTP)
         im = np.ctypeslib.as_array(ptr, (buf.get_image_height(), buf.get_image_width()))
         return im.copy()
+
+
+    def on_notify(self, notification):
+        super().on_notify(notification)
+        subject = notification["subject"]
+
+        if subject == "capture.should_start":
+            self._start_capture()
+        elif subject == "capture.should_stop":
+            self._stop_capture()
 
     def recent_events(self, events):
         if (self.cam is None) or (not self._status):

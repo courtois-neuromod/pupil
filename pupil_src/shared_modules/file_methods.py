@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2021 Pupil Labs
+Copyright (C) 2012-2022 Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -60,7 +60,12 @@ class Persistent_Dict(dict):
     def save(self):
         d = {}
         d.update(self)
-        save_object(d, self.file_path)
+        try:
+            save_object(d, self.file_path)
+        except PermissionError:
+            logger.warning(
+                f"Permission denied when trying to write to file: {self.file_path}"
+            )
 
     def close(self):
         self.save()

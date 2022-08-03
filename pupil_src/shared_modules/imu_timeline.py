@@ -1,7 +1,8 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2021 Pupil Labs
+Copyright (C) 2012-2022 Pupil Labs
+
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
@@ -204,13 +205,16 @@ class Fusion(object):
 
         # These are modified to account for Invisible IMU coordinate system and positioning of
         # the IMU within the invisible headset
-        self.roll = (
+        roll = (
             np.degrees(
                 -np.arcsin(2.0 * (self.q[1] * self.q[3] - self.q[0] * self.q[2]))
             )
             + 7
         )
-        self.pitch = (
+        # bring to range [-180, 180]
+        self.roll = ((roll + 180) % 360) - 180
+
+        pitch = (
             np.degrees(
                 np.arctan2(
                     2.0 * (self.q[0] * self.q[1] + self.q[2] * self.q[3]),
@@ -222,6 +226,8 @@ class Fusion(object):
             )
             + 90
         )
+        # bring to range [-180, 180]
+        self.pitch = ((pitch + 180) % 360) - 180
 
 
 class IMURecording:
