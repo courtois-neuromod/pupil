@@ -234,6 +234,7 @@ class Aravis_Source(Base_Source):
         # set exposure to the minimum, should work in semi-dark environment
         self.exposure_time_backup = self.exposure_time
         self.exposure_time = 0
+        self._flush_buffers()
         self._set_dark_image = self.auto_noise_suppression
         time.sleep(.1)
 
