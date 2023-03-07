@@ -1,14 +1,13 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import getpass
 import logging
 import os
@@ -69,7 +68,6 @@ def project_distort_pts(
     rvec=np.array([0, 0, 0], dtype=np.float32),
     tvec=np.array([0, 0, 0], dtype=np.float32),
 ):
-
     # projectPoints is the inverse of function implemented above --> should map the intermediate result to the original input
     pts2d, _ = cv2.projectPoints(pts_xyz, rvec, tvec, camera_matrix, dist_coefs)
     return pts2d.reshape(-1, 2)
@@ -778,7 +776,7 @@ def timeit(method):
         ts = time.time()
         result = method(*args, **kw)
         te = time.time()
-        print("TIMEIT %r %f sec" % (method.__name__, te - ts))
+        print(f"TIMEIT {method.__name__!r} {te - ts:f} sec")
         return result
 
     return timed

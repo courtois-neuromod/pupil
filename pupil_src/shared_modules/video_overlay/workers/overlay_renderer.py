@@ -1,23 +1,21 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import logging
 from collections import OrderedDict
 
 import player_methods as pm
-from observable import Observable
-
 import video_overlay.utils.image_manipulation as IM
-from video_overlay.utils.constraints import InclusiveConstraint
+from observable import Observable
 from video_overlay.models.config import Configuration
+from video_overlay.utils.constraints import InclusiveConstraint
 from video_overlay.workers.frame_fetcher import FrameFetcher
 
 logger = logging.getLogger(__name__)
@@ -34,7 +32,7 @@ class OverlayRenderer:
             self.video = FrameFetcher(self.config.video_path)
             self.valid_video_loaded = True
         except FileNotFoundError:
-            logger.debug("Could not load overlay: {}".format(self.config.video_path))
+            logger.debug(f"Could not load overlay: {self.config.video_path}")
             self.valid_video_loaded = False
         return self.valid_video_loaded
 

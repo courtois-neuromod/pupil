@@ -1,14 +1,13 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import logging
 from types import SimpleNamespace
 
@@ -38,8 +37,18 @@ _transformations_to_new_style = {
 
 
 def update_recording(rec_dir: str):
-
     recording_type = get_recording_type(rec_dir)
+
+    if recording_type == RecordingType.CLOUD_CSV_EXPORT:
+        raise InvalidRecordingException(
+            "Pupil Cloud CSV exports\nare not supported in Pupil Player",
+            recovery="Open the CSV files in the\nanalysis tool of your choice instead",
+        )
+    if recording_type == RecordingType.NEON:
+        raise InvalidRecordingException(
+            "Neon Companion app recordings\nare not supported in Pupil Player",
+            recovery="You can view them in Pupil Cloud instead",
+        )
 
     if recording_type == RecordingType.INVISIBLE:
         # NOTE: there is an issue with PI recordings, where sometimes multiple parts of

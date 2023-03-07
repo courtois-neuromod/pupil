@@ -1,26 +1,24 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import logging
 import time
 import traceback
 import uuid
 
 import msgpack
+import os_utils
 import zmq
+from plugin import Plugin
 from pyglui import ui
 from pyre import Pyre, PyreEvent, zhelper
-
-import os_utils
-from plugin import Plugin
 from zmq_tools import Msg_Dispatcher, Msg_Receiver
 
 os_utils.patch_pyre_zhelper_cdll()

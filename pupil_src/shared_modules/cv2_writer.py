@@ -1,18 +1,17 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 from cv2 import VideoWriter
 
 
-class CV_Writer(object):
+class CV_Writer:
     """docstring for CV_Writer"""
 
     def __init__(self, file_loc, frame_rate, frame_size):

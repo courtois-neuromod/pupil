@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -9,14 +9,14 @@ See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
 
+from version_utils import ParsedVersion, parse_version
+
 from . import RecordingInfoFile
-from .recording_info_2_0 import _RecordingInfoFile_2_0
 from . import recording_info_utils as utils
-from version_utils import parse_version, ParsedVersion
+from .recording_info_2_0 import _RecordingInfoFile_2_0
 
 
 class _RecordingInfoFile_2_1(_RecordingInfoFile_2_0):
-
     # Used for differentiating between < v1.18 and >= v1.18 because of a bug in the
     # upgrade of PI recordings to newstyle. The data format is the same. Note that
     # min_player_version stays the same, as recordings that have been transformed to

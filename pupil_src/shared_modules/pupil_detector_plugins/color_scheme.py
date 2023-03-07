@@ -1,14 +1,13 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import functools
 import typing as T
 
@@ -26,7 +25,7 @@ class Color(T.NamedTuple):
     def from_hex(cls, hex: str) -> "Color":
         # find: rgb tuple from hex string
         # example: 00ff00 -> (0, 255, 0)
-        c0, c1, c2 = [int(hex[i : i + 2], 16) for i in range(0, 5, 2)]
+        c0, c1, c2 = (int(hex[i : i + 2], 16) for i in range(0, 5, 2))
         return cls(c0, c1, c2)
 
     @property

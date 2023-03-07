@@ -1,14 +1,13 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import logging
 
 import tasklib
@@ -76,7 +75,7 @@ class OfflineOptimizationController(Observable):
     def _create_optimization_task(self):
         def on_yield(result):
             self._update_result(result)
-            self.status = "{:.0f}% completed".format(self._task.progress * 100)
+            self.status = f"{self._task.progress * 100:.0f}% completed"
 
         def on_completed(_):
             if self._optimization_storage.calculated:
@@ -93,7 +92,7 @@ class OfflineOptimizationController(Observable):
                     reason = "not enough markers were collected"
 
                 self.status = "failed: " + reason
-            logger.info("markers 3d model optimization '{}' ".format(self.status))
+            logger.info(f"markers 3d model optimization '{self.status}' ")
 
             self._optimization_storage.save_plmodel_to_disk()
 

@@ -1,14 +1,13 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import player_methods as pm
 from head_pose_tracker import controller, storage
 from head_pose_tracker import ui as plugin_ui
@@ -200,7 +199,7 @@ class Offline_Head_Pose_Tracker(Head_Pose_Tracker_Base):
         time = ts - min_ts
         minutes = abs(time // 60)  # abs because it's sometimes -0
         seconds = round(time % 60)
-        return "{:02.0f}:{:02.0f}".format(minutes, seconds)
+        return f"{minutes:02.0f}:{seconds:02.0f}"
 
     def get_current_frame_index(self):
         return self.g_pool.capture.get_frame_index()

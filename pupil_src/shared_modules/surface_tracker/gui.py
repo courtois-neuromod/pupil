@@ -1,32 +1,29 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import platform
 import typing
 from enum import Enum
 
 import cv2
+import gl_utils
+import glfw
 import numpy as np
 import OpenGL.GL as gl
 import pyglui
 import pyglui.cygl.utils as pyglui_utils
-
-import gl_utils
-import glfw
-from gl_utils import draw_circle_filled_func_builder, GLFWErrorReporting
+from gl_utils import GLFWErrorReporting, draw_circle_filled_func_builder
 
 GLFWErrorReporting.set_default()
 
 from .surface_marker import Surface_Marker_Type
-
 
 SURFACE_TRACKER_CHANGED_DELAY = 1.0
 
@@ -240,7 +237,6 @@ class GUI:
         # If the surface is defined, draw menu buttons. Otherwise draw definition
         # progress.
         if surface.defined:
-
             self._draw_surface_menu_buttons(
                 surface, surface_edit_anchor, marker_edit_anchor
             )
@@ -293,7 +289,7 @@ class GUI:
     def _draw_surface_definition_progress(
         self, surface, surface_edit_anchor, marker_edit_anchor
     ):
-        progress_text = "{:.0f} %".format(surface.build_up_status * 100)
+        progress_text = f"{surface.build_up_status * 100:.0f} %"
         progress_color_rgba = rgb_to_rgba(self.color_secondary_rgb)
         self._draw_text(
             (surface_edit_anchor[0] + 15, surface_edit_anchor[1] + 6),
@@ -420,7 +416,6 @@ class GUI:
     def _on_click_menu_buttons(self, action, pos):
         if action == glfw.PRESS:
             for surface in reversed(self.tracker.surfaces):
-
                 if not surface.detected:
                     continue
 
@@ -567,7 +562,6 @@ class Surface_Window:
 
     def open_window(self):
         if not self._window:
-
             monitor = None
             # open with same aspect ratio as surface
             surface_aspect_ratio = (

@@ -1,14 +1,13 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import collections
 import collections.abc
 import copy
@@ -22,7 +21,7 @@ from pathlib import Path
 
 import msgpack
 import numpy as np
-
+from rich.progress import track
 
 assert (
     msgpack.version[0] == 1
@@ -45,7 +44,7 @@ class Persistent_Dict(dict):
             if os.path.getsize(file_path) > 0:
                 # Only try to load object if file is not empty
                 self.update(**load_object(self.file_path, allow_legacy=False))
-        except IOError:
+        except OSError:
             logger.debug(
                 f"Session settings file '{self.file_path}' not found."
                 " Will make new one on exit."
@@ -120,7 +119,7 @@ def save_object(object_, file_path):
         msgpack.pack(object_, fh, use_bin_type=True, default=ndarrray_to_list)
 
 
-class Incremental_Legacy_Pupil_Data_Loader(object):
+class Incremental_Legacy_Pupil_Data_Loader:
     def __init__(self, directory=""):
         self.file_loc = os.path.join(directory, "pupil_data")
 
@@ -145,20 +144,36 @@ class Incremental_Legacy_Pupil_Data_Loader(object):
             yield self.unpacker.unpack()
 
 
-def load_pldata_file(directory, topic):
+def load_pldata_file(directory, topic, track_progress_in_console: bool = True):
     ts_file = os.path.join(directory, topic + "_timestamps.npy")
     msgpack_file = os.path.join(directory, topic + ".pldata")
     try:
         data = collections.deque()
         topics = collections.deque()
-        data_ts = np.load(ts_file)
+        extract_ts = False
+        try:
+            data_ts = np.load(ts_file)
+        except FileNotFoundError:
+            data_ts = []
+            extract_ts = True
+            logger.warning(
+                f"Timestamp file not found at expected location `{ts_file}`."
+                " Attempting to fallback to msgpack-serialized timestamps."
+            )
         with open(msgpack_file, "rb") as fh:
-            for topic, payload in msgpack.Unpacker(
-                fh, use_list=False, strict_map_key=False
-            ):
-                data.append(Serialized_Dict(msgpack_bytes=payload))
+            unpacker = msgpack.Unpacker(fh, use_list=False, strict_map_key=False)
+            if track_progress_in_console:
+                unpacker = track(
+                    unpacker, description=f"Loading {topic} data", total=len(data_ts)
+                )
+            for topic, payload in unpacker:
+                datum = Serialized_Dict(msgpack_bytes=payload)
+                data.append(datum)
                 topics.append(topic)
-    except FileNotFoundError:
+                if extract_ts:
+                    data_ts.append(datum["timestamp"])
+    except FileNotFoundError as err:
+        logger.debug(err)
         data = []
         data_ts = []
         topics = []
@@ -166,7 +181,7 @@ def load_pldata_file(directory, topic):
     return PLData(data, data_ts, topics)
 
 
-class PLData_Writer(object):
+class PLData_Writer:
     """docstring for PLData_Writer"""
 
     def __init__(self, directory, name):
@@ -212,19 +227,19 @@ def next_export_sub_dir(root_export_dir):
     existing_subs = sorted(iglob(pattern))
     try:
         latest = os.path.split(existing_subs[-1])[-1]
-        next_sub_dir = "{:03d}".format(int(latest) + 1)
+        next_sub_dir = f"{int(latest) + 1:03d}"
     except IndexError:
         next_sub_dir = "000"
 
     return os.path.join(root_export_dir, next_sub_dir)
 
 
-class _Empty(object):
+class _Empty:
     def purge_cache(self):
         pass
 
 
-class Serialized_Dict(object):
+class Serialized_Dict:
     __slots__ = ["_ser_data", "_data"]
     cache_len = 100
     _cache_ref = [_Empty()] * cache_len
@@ -271,7 +286,7 @@ class Serialized_Dict(object):
     def packing_hook(self, obj):
         if isinstance(obj, self):
             return msgpack.ExtType(self.MSGPACK_EXT_CODE, obj.serialized)
-        raise TypeError("can't serialize {}({})".format(type(obj), repr(obj)))
+        raise TypeError(f"can't serialize {type(obj)}({repr(obj)})")
 
     @classmethod
     def unpacking_ext_hook(self, code, data):
@@ -295,7 +310,7 @@ class Serialized_Dict(object):
 
     def __repr__(self):
         self._deser()
-        return "Serialized_Dict({})".format(repr(self._data))
+        return f"Serialized_Dict({repr(self._data)})"
 
     @property
     def len(self):
@@ -378,7 +393,6 @@ class Serialized_Dict(object):
 
 
 def _recursive_deep_copy(item):
-
     if isinstance(item, collections.abc.Mapping):
         _item_dict = {k: _recursive_deep_copy(v) for k, v in item.items()}
         if isinstance(item, types.MappingProxyType):
@@ -445,7 +459,6 @@ def bench_save():
 
 
 def bench_load():
-
     import time
 
     start = time.time()

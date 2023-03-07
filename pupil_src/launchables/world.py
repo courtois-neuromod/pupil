@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -58,8 +58,8 @@ def world(
     # This is not harmful but unnecessary.
 
     # general imports
-    from time import sleep
     import logging
+    from time import sleep
 
     # networking
     import zmq
@@ -81,7 +81,7 @@ def world(
 
     def launch_eye_process(eye_id, delay=0):
         n = {
-            "subject": "eye_process.should_start.{}".format(eye_id),
+            "subject": f"eye_process.should_start.{eye_id}",
             "eye_id": eye_id,
             "delay": delay,
         }
@@ -89,9 +89,8 @@ def world(
 
     def stop_eye_process(eye_id):
         n = {
-            "subject": "eye_process.should_stop.{}".format(eye_id),
+            "subject": f"eye_process.should_stop.{eye_id}",
             "eye_id": eye_id,
-            "delay": 0.2,
         }
         ipc_pub.notify(n)
 
@@ -119,78 +118,77 @@ def world(
 
         IPCLoggingPatch.ipc_push_url = ipc_push_url
 
-        from OpenGL.GL import GL_COLOR_BUFFER_BIT
-
         # display
         import glfw
         from gl_utils import GLFWErrorReporting
+        from OpenGL.GL import GL_COLOR_BUFFER_BIT
 
         GLFWErrorReporting.set_default()
 
+        from pyglui import __version__ as pyglui_version
+        from pyglui import cygl, ui
         from version_utils import parse_version
-        from pyglui import ui, cygl, __version__ as pyglui_version
 
         assert parse_version(pyglui_version) >= parse_version(
             "1.31.0"
         ), "pyglui out of date, please upgrade to newest version"
-        from pyglui.cygl.utils import Named_Texture
         import gl_utils
 
         # helpers/utils
         from file_methods import Persistent_Dict
-        from methods import normalize, denormalize, delta_t, get_system_info, timer
+        from methods import delta_t, denormalize, get_system_info, normalize, timer
+        from pyglui.cygl.utils import Named_Texture
         from uvc import get_time_monotonic
 
-        logger.debug("Application Version: {}".format(version))
-        logger.debug("System Info: {}".format(get_system_info()))
+        logger.debug(f"Application Version: {version}")
+        logger.debug(f"System Info: {get_system_info()}")
         logger.debug(f"Debug flag: {debug}")
 
         import audio
+        from calibration_choreography import (
+            CalibrationChoreographyPlugin,
+            available_calibration_choreography_plugins,
+            patch_loaded_plugins_with_choreography_plugin,
+        )
 
         # Plug-ins
         from plugin import (
             Plugin,
-            System_Plugin_Base,
             Plugin_List,
+            System_Plugin_Base,
             import_runtime_plugins,
         )
         from plugin_manager import Plugin_Manager
-        from calibration_choreography import (
-            available_calibration_choreography_plugins,
-            CalibrationChoreographyPlugin,
-            patch_loaded_plugins_with_choreography_plugin,
-        )
 
         available_choreography_plugins = available_calibration_choreography_plugins()
 
+        from accuracy_visualizer import Accuracy_Visualizer
+        from annotations import Annotation_Capture
+        from blink_detection import Blink_Detection
+        from camera_intrinsics_estimation import Camera_Intrinsics_Estimation
+        from display_recent_gaze import Display_Recent_Gaze
+        from fixation_detector import Fixation_Detector
         from gaze_mapping import registered_gazer_classes
         from gaze_mapping.gazer_base import GazerBase
-        from pupil_detector_plugins.detector_base_plugin import PupilDetectorPlugin
-        from fixation_detector import Fixation_Detector
-        from recorder import Recorder
-        from display_recent_gaze import Display_Recent_Gaze
-        from time_sync import Time_Sync
-        from network_api import NetworkApiPlugin
-        from pupil_groups import Pupil_Groups
-        from surface_tracker import Surface_Tracker_Online
+        from head_pose_tracker.online_head_pose_tracker import Online_Head_Pose_Tracker
+        from hololens_relay import Hololens_Relay
         from log_display import Log_Display
-        from annotations import Annotation_Capture
         from log_history import Log_History
-        from blink_detection import Blink_Detection
+        from network_api import NetworkApiPlugin
+        from pupil_data_relay import Pupil_Data_Relay
+        from pupil_detector_plugins.detector_base_plugin import PupilDetectorPlugin
+        from pupil_groups import Pupil_Groups
+        from recorder import Recorder
+        from remote_recorder import Remote_Recorder
+        from surface_tracker import Surface_Tracker_Online
+        from system_graphs import System_Graphs
+        from time_sync import Time_Sync
         from video_capture import (
-            source_classes,
-            manager_classes,
             Base_Manager,
             Base_Source,
+            manager_classes,
+            source_classes,
         )
-        from pupil_data_relay import Pupil_Data_Relay
-        from remote_recorder import Remote_Recorder
-        from accuracy_visualizer import Accuracy_Visualizer
-
-        from system_graphs import System_Graphs
-        from camera_intrinsics_estimation import Camera_Intrinsics_Estimation
-        from hololens_relay import Hololens_Relay
-        from head_pose_tracker.online_head_pose_tracker import Online_Head_Pose_Tracker
 
         # UI Platform tweaks
         if platform.system() == "Linux":
@@ -325,6 +323,7 @@ def world(
             ("NDSI_Manager", {}),
             ("Aravis_Manager", {}),
             ("HMD_Streaming_Manager", {}),
+            ("Neon_Manager", {}),
             ("File_Manager", {}),
             ("Log_Display", {}),
             ("Dummy_Gaze_Mapper", {}),
@@ -636,9 +635,7 @@ def world(
             )
         )
 
-        general_settings.append(
-            ui.Info_Text("Capture Version: {}".format(g_pool.version))
-        )
+        general_settings.append(ui.Info_Text(f"Capture Version: {g_pool.version}"))
         general_settings.append(
             ui.Button("Restart with default settings", reset_restart)
         )
@@ -733,7 +730,6 @@ def world(
 
         # Event loop
         while not glfw.window_should_close(main_window) and not process_was_interrupted:
-
             # fetch newest notifications
             new_notifications = []
             while notify_sub.new_data:
@@ -781,7 +777,6 @@ def world(
             # render visual feedback from loaded plugins
             glfw.poll_events()
             if window_should_update() and gl_utils.is_window_visible(main_window):
-
                 gl_utils.glViewport(0, 0, *camera_render_size)
                 for p in g_pool.plugins:
                     p.gl_display()
@@ -849,6 +844,13 @@ def world(
 
         session_settings.close()
 
+    except Exception:
+        import traceback
+
+        trace = traceback.format_exc()
+        logger.error(f"Process Capture crashed with trace:\n{trace}")
+        raise
+    finally:
         # de-init all running plugins
         for p in g_pool.plugins:
             p.alive = False
@@ -858,13 +860,6 @@ def world(
         glfw.destroy_window(main_window)
         glfw.terminate()
 
-    except Exception:
-        import traceback
-
-        trace = traceback.format_exc()
-        logger.error("Process Capture crashed with trace:\n{}".format(trace))
-
-    finally:
         # shut down eye processes:
         stop_eye_process(0)
         stop_eye_process(1)
@@ -885,14 +880,33 @@ def world_profiled(
     preferred_remote_port,
     hide_ui,
     debug,
+    skip_driver_installation,
 ):
     import cProfile
-    import subprocess
     import os
+    import subprocess
+    from textwrap import dedent
+
     from .world import world
 
     cProfile.runctx(
-        "world(timebase, eye_procs_alive, ipc_pub_url,ipc_sub_url,ipc_push_url,user_dir,version,preferred_remote_port, hide_ui, debug)",
+        dedent(
+            """
+            world(
+                timebase,
+                eye_procs_alive,
+                ipc_pub_url,
+                ipc_sub_url,
+                ipc_push_url,
+                user_dir,
+                version,
+                preferred_remote_port,
+                hide_ui,
+                debug,
+                skip_driver_installation
+            )
+            """
+        ),
         {
             "timebase": timebase,
             "eye_procs_alive": eye_procs_alive,
@@ -904,6 +918,7 @@ def world_profiled(
             "preferred_remote_port": preferred_remote_port,
             "hide_ui": hide_ui,
             "debug": debug,
+            "skip_driver_installation": skip_driver_installation,
         },
         locals(),
         "world.pstats",

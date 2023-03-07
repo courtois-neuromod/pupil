@@ -1,25 +1,23 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import typing
-import numpy as np
 
+import numpy as np
 from surface_tracker.surface import Surface
-from surface_tracker.surface_online import Surface_Online
-from surface_tracker.surface_offline import Surface_Offline
 from surface_tracker.surface_marker_aggregate import (
     Surface_Marker_Aggregate,
     Surface_Marker_UID,
 )
-
+from surface_tracker.surface_offline import Surface_Offline
+from surface_tracker.surface_online import Surface_Online
 
 __all__ = [
     "surface_pairs",
@@ -43,9 +41,9 @@ def surfaces_deserialized() -> typing.Collection[Surface]:
     return tuple(d for d, s in surface_pairs())
 
 
-def surface_marker_aggregate_pairs() -> typing.Collection[
-    typing.Tuple[Surface_Marker_Aggregate, dict]
-]:
+def surface_marker_aggregate_pairs() -> (
+    typing.Collection[typing.Tuple[Surface_Marker_Aggregate, dict]]
+):
     return (
         (
             SURFACE_MARKER_AGGREGATE_V00_DESERIALIZED_0_DIST,
@@ -70,9 +68,9 @@ def surface_marker_aggregates_serialized() -> typing.Collection[dict]:
     return tuple(s for d, s in surface_marker_aggregate_pairs())
 
 
-def surface_marker_aggregates_deserialized() -> typing.Collection[
-    Surface_Marker_Aggregate
-]:
+def surface_marker_aggregates_deserialized() -> (
+    typing.Collection[Surface_Marker_Aggregate]
+):
     return tuple(d for d, s in surface_marker_aggregate_pairs())
 
 

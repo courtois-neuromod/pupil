@@ -1,14 +1,13 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import itertools
 import logging
 import multiprocessing
@@ -19,14 +18,13 @@ import time
 import typing as T
 
 import cv2
+import data_changed
+import file_methods
+import gl_utils
 import numpy as np
 import OpenGL.GL as gl
 import pyglui
 import pyglui.cygl.utils as pyglui_utils
-
-import data_changed
-import file_methods
-import gl_utils
 from observable import Observable
 from plugin import Plugin
 
@@ -37,9 +35,9 @@ from .surface_marker import Surface_Marker
 from .surface_marker_detector import MarkerDetectorMode, MarkerType
 from .surface_offline import Surface_Offline
 from .surface_tracker import (
-    Surface_Tracker,
     APRILTAG_HIGH_RES_ON,
     APRILTAG_SHARPENING_ON,
+    Surface_Tracker,
 )
 
 logger = logging.getLogger(__name__)
@@ -165,7 +163,6 @@ class Surface_Tracker_Offline(Observable, Surface_Tracker, Plugin):
                 # Loaded markers are either False, [] or a list of dictionaries. We
                 # need to convert the dictionaries into Surface_Marker objects.
                 if markers:
-
                     markers = [
                         Surface_Marker.deserialize(args) if args else None
                         for args in markers
@@ -566,7 +563,6 @@ class Surface_Tracker_Offline(Observable, Surface_Tracker, Plugin):
                     break
 
         elif notification["subject"] == "should_export":
-
             if self.cache_filler is not None:
                 logger.error("Marker detection not finished. No data will be exported.")
                 return

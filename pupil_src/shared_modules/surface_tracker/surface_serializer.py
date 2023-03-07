@@ -1,14 +1,13 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import abc
 import functools
 import logging
@@ -114,7 +113,6 @@ class _Surface_Serializer_Base(abc.ABC):
 
 
 class _Surface_Serializer_V00(_Surface_Serializer_Base):
-
     version = 0
 
     def dict_from_surface_marker_aggregate(
@@ -157,7 +155,6 @@ class _Surface_Serializer_V00(_Surface_Serializer_Base):
 
 
 class _Surface_Serializer_V01(_Surface_Serializer_Base):
-
     version = 1
 
     def dict_from_surface_marker_aggregate(

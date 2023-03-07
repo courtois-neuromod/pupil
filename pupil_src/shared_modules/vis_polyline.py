@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -9,16 +9,13 @@ See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
 
-from plugin import Plugin
-import numpy as np
-
 import cv2
-
-from pyglui import ui
-from observable import Observable
-from methods import denormalize
+import numpy as np
 from data_changed import Listener
-
+from methods import denormalize
+from observable import Observable
+from plugin import Plugin
+from pyglui import ui
 from scan_path import ScanPathController
 from scan_path.utils import np_denormalize
 
@@ -58,7 +55,6 @@ class Vis_Polyline(Plugin, Observable):
         }
 
     def init_ui(self):
-
         polyline_style_thickness_slider = ui.Slider(
             "thickness",
             self.polyline_style_controller,
@@ -217,7 +213,6 @@ class Vis_Polyline(Plugin, Observable):
 
 
 class PolylineStyleController:
-
     rgba_min = 0.0
     rgba_max = 1.0
     rgba_step = 0.05

@@ -1,28 +1,25 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import abc
 import csv
 import logging
 import os
 import typing
 
-from pyglui import ui
-
 import csv_utils
 import player_methods as pm
 from plugin import Plugin
-
 from pupil_producers import Pupil_Producer_Base
-
+from pyglui import ui
+from rich.progress import track
 
 # logging
 logger = logging.getLogger(__name__)
@@ -271,7 +268,11 @@ class _Base_Positions_Exporter(abc.ABC):
             dict_writer = csv.DictWriter(csvfile, fieldnames=csv_header)
             dict_writer.writeheader()
 
-            for g, idx in zip(export_section["data"], export_world_idc):
+            for g, idx in track(
+                zip(export_section["data"], export_world_idc),
+                description=f"Exporting {export_file}",
+                total=len(export_world_idc),
+            ):
                 if g["confidence"] < min_confidence_threshold:
                     continue
                 dict_row = type(self).dict_export(raw_value=g, world_index=idx)
@@ -457,7 +458,6 @@ class Gaze_Positions_Exporter(_Base_Positions_Exporter):
     def dict_export(
         cls, raw_value: csv_utils.CSV_EXPORT_RAW_TYPE, world_index: int
     ) -> dict:
-
         gaze_timestamp = str(raw_value["timestamp"])
         confidence = raw_value["confidence"]
         norm_pos = raw_value["norm_pos"]

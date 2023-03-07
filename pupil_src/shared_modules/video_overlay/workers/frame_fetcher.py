@@ -1,14 +1,13 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import logging
 from types import SimpleNamespace
 
@@ -45,5 +44,5 @@ class FrameFetcher:
             try:
                 self.current_frame = self.source.get_frame()
             except EndofVideoError:
-                logger.info("End of video {}.".format(self.source.source_path))
+                logger.info(f"End of video {self.source.source_path}.")
         return self.current_frame
