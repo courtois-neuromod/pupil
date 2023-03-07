@@ -134,7 +134,7 @@ def eye(
 
         # monitoring
         import psutil
-        from av_writer import JPEG_Writer, MPEG_Writer, NonMonotonicTimestampError
+        from av_writer import JPEG_Writer, MPEG_Writer, X265_Writer, NonMonotonicTimestampError
         from background_helper import IPC_Logging_Task_Proxy
         from file_methods import Persistent_Dict
         from gl_utils import (
