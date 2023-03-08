@@ -1,25 +1,25 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import os
-import psutil
-import glfw
+
 import gl_utils
+import glfw
+import psutil
 from gl_utils import GLFWErrorReporting
 
 GLFWErrorReporting.set_default()
 
-from pyglui import ui, graph
-from pyglui.cygl.utils import RGBA, mix_smooth
 from plugin import System_Plugin_Base
+from pyglui import graph, ui
+from pyglui.cygl.utils import RGBA, mix_smooth
 
 
 class System_Graphs(System_Plugin_Base):

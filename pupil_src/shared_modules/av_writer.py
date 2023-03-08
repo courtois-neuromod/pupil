@@ -1,30 +1,28 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import abc
-import math
-import logging
 import collections
+import logging
+import math
 import multiprocessing as mp
 import os
 import typing as T
 from fractions import Fraction
 
+import audio_utils
 import av
 import numpy as np
 from av.packet import Packet
-
-import audio_utils
-from video_capture.utils import Video, InvalidContainerError
-from methods import iter_catch, container_decode
+from methods import container_decode, iter_catch
+from video_capture.utils import InvalidContainerError, Video
 
 logger = logging.getLogger(__name__)
 
@@ -67,11 +65,11 @@ def write_timestamps(file_loc, timestamps, output_format="npy"):
     """
     directory, video_file = os.path.split(file_loc)
     name, ext = os.path.splitext(video_file)
-    ts_file = "{}_timestamps".format(name)
+    ts_file = f"{name}_timestamps"
     ts_loc = os.path.join(directory, ts_file)
     ts = np.array(timestamps)
     if output_format not in ("npy", "csv", "all"):
-        raise ValueError("Unknown timestamp output format `{}`".format(output_format))
+        raise ValueError(f"Unknown timestamp output format `{output_format}`")
     if output_format in ("npy", "all"):
         np.save(ts_loc + ".npy", ts)
     if output_format in ("csv", "all"):
@@ -130,7 +128,7 @@ class AV_Writer(abc.ABC):
         # `ext` starts with a dot, so we need to remove it for the format to be
         # recongnized by pyav
         self.container = av.open(self.output_file_path_in_porgress, "w", format=ext[1:])
-        logger.debug("Opened '{}' for writing.".format(output_file_path))
+        logger.debug(f"Opened '{output_file_path}' for writing.")
 
         self.configured = False
         self.video_stream = self.container.add_stream(
@@ -370,9 +368,13 @@ class JPEG_Writer(AV_Writer):
 
     def encode_frame(self, input_frame, pts: int) -> T.Iterator[Packet]:
         # for JPEG we only get a single packet per frame
-        packet = Packet()
+        try:
+            packet = Packet()
+            packet.payload = input_frame.jpeg_buffer
+        except AttributeError:
+            packet = Packet(input_frame.jpeg_buffer)
+            # packet.update()
         packet.stream = self.video_stream
-        packet.payload = input_frame.jpeg_buffer
         packet.time_base = self.time_base
         packet.pts = pts
         # TODO: check if we still need dts here, as they were removed from MPEG_Writer
@@ -388,7 +390,10 @@ class MPEG_Audio_Writer(MPEG_Writer):
         stream = container.add_stream(
             codec_name=template.codec.name, rate=template.rate
         )
-        stream.layout = template.layout
+        try:
+            stream.layout = template.layout
+        except AttributeError:
+            pass
         return stream
 
     def __init__(self, *args, audio_dir: str, **kwargs):
@@ -443,7 +448,6 @@ class _AudioPacketIterator:
         self.fill_gaps = fill_gaps
 
     def iterate_audio_packets(self):
-
         last_audio_pts = float("-inf")
 
         if self.fill_gaps:
@@ -454,27 +458,31 @@ class _AudioPacketIterator:
         for audio_frame in audio_frames_iterator:
             frame, raw_ts = audio_frame.raw_frame, audio_frame.start_time
 
-            for packet in self.audio_export_stream.encode(frame):
-                if not packet:
-                    continue
+            try:
+                for packet in self.audio_export_stream.encode(frame):
+                    if not packet:
+                        continue
 
-                audio_ts = raw_ts - self.start_time
-                audio_pts = int(audio_ts / self.audio_export_stream.time_base)
+                    audio_ts = raw_ts - self.start_time
+                    audio_pts = int(audio_ts / self.audio_export_stream.time_base)
 
-                # ensure strong monotonic pts
-                audio_pts = max(audio_pts, last_audio_pts + 1)
-                last_audio_pts = audio_pts
+                    # ensure strong monotonic pts
+                    audio_pts = max(audio_pts, last_audio_pts + 1)
+                    last_audio_pts = audio_pts
 
-                packet.pts = audio_pts
-                packet.dts = audio_pts
-                packet.stream = self.audio_export_stream
+                    packet.pts = audio_pts
+                    packet.dts = audio_pts
+                    packet.stream = self.audio_export_stream
 
-                if audio_ts < 0:
-                    logger.debug(f"Seeking audio: {audio_ts} -> {self.start_time}")
-                    # discard all packets before start time
-                    return None
+                    if audio_ts < 0:
+                        logger.debug(f"Seeking audio: {audio_ts} -> {self.start_time}")
+                        # discard all packets before start time
+                        return None
 
-                yield packet
+                    yield packet
+            except ValueError as exc:
+                # TODO: investigate cause
+                logger.debug(f"Failed encoding audio frames {frame} due to {exc}")
 
     # Private
 
@@ -504,7 +512,6 @@ class _AudioPacketIterator:
                 raise ValueError(f"Unknown audio frame type: {audio_frame}")
 
     def _iterate_audio_frames_filling_gaps(self):
-
         # Prologue: Yield silence frames between start_time and the first audio frame (if any)
 
         audio_part_end_ts = [part.timestamps[-1] for part in self.audio_parts]
@@ -568,7 +575,6 @@ class _AudioPacketIterator:
         last_part_last_frame = None
 
         for part_idx, audio_part in enumerate(audio_parts):
-
             frames = container_decode(audio_part.container, audio=0)
             frames = iter_catch(frames, av.AVError)
             for frame, timestamp in zip(frames, audio_part.timestamps):
@@ -595,7 +601,6 @@ class _AudioPacketIterator:
 
     @staticmethod
     def _generate_silence_audio_frames(stream, start_ts, max_duration: float = None):
-
         frame_sample_sizes = _AudioPacketIterator._generate_raw_frame_sample_size(
             stream, start_ts, max_duration
         )

@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -10,20 +10,18 @@ See COPYING and COPYING.LESSER for license details.
 """
 import logging
 
-from pupil_detectors import Detector2D, DetectorBase, Roi
-from pyglui import ui
-from pyglui.cygl.utils import draw_gl_texture
-
 import glfw
-
 from gl_utils import (
+    GLFWErrorReporting,
     adjust_gl_view,
     basic_gl_setup,
     clear_gl_screen,
     make_coord_system_norm_based,
     make_coord_system_pixel_based,
-    GLFWErrorReporting,
 )
+from pupil_detectors import Detector2D, DetectorBase, Roi
+from pyglui import ui
+from pyglui.cygl.utils import draw_gl_texture
 
 GLFWErrorReporting.set_default()
 
@@ -38,7 +36,6 @@ logger = logging.getLogger(__name__)
 
 
 class Detector2DPlugin(PupilDetectorPlugin):
-
     pupil_detection_identifier = "2d"
     pupil_detection_method = "2d c++"
 
@@ -65,6 +62,11 @@ class Detector2DPlugin(PupilDetectorPlugin):
         self.detector_2d = detector_2d or Detector2D(properties or {})
         self._subsample_fps = 0
         self._last_detect_timestamp = 0
+
+    def get_init_dict(self):
+        init_dict = super().get_init_dict()
+        init_dict["properties"] = self.detector_2d.get_properties()
+        return init_dict
 
     def detect(self, frame, **kwargs):
         if self._subsample_fps > 0 and frame.timestamp > self._last_detect_timestamp:
@@ -150,6 +152,22 @@ class Detector2DPlugin(PupilDetectorPlugin):
                 label="Pupil max",
                 min=50,
                 max=400,
+                step=1,
+            )
+        )
+        info = ui.Info_Text(
+            "When using Neon in bright light, increasing the Canny Threshold can "
+            "help reduce the effect of reflections in the eye image and improve pupil "
+            "detection. The default value is 160."
+        )
+        self.menu.append(info)
+        self.menu.append(
+            ui.Slider(
+                "canny_treshold",
+                self.pupil_detector_properties,
+                label="Canny Threshold",
+                min=0,
+                max=1000,
                 step=1,
             )
         )

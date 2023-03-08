@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -14,30 +14,34 @@ from .base_plugin import (
     ChoreographyMode,
     ChoreographyNotification,
 )
-from .screen_marker_plugin import ScreenMarkerChoreographyPlugin
-from .single_marker_plugin import SingleMarkerChoreographyPlugin
-from .natural_feature_plugin import NaturalFeatureChoreographyPlugin
-from .hmd_plugin import HMD3DChoreographyPlugin
+
+
+def import_builtin_choreography_plugins():
+    from .hmd_plugin import HMD3DChoreographyPlugin
+    from .natural_feature_plugin import NaturalFeatureChoreographyPlugin
+    from .screen_marker_plugin import ScreenMarkerChoreographyPlugin
+    from .single_marker_plugin import SingleMarkerChoreographyPlugin
 
 
 def available_calibration_choreography_plugins():
+    import_builtin_choreography_plugins()
     return list(
         CalibrationChoreographyPlugin.registered_choreographies_by_label().values()
     )
 
 
 def default_calibration_choreography_plugin(app: str):
+    registered = CalibrationChoreographyPlugin.registered_choreographies_by_label()
     if app == "capture":
-        return ScreenMarkerChoreographyPlugin
+        return registered["Screen Marker Calibration"]  # ScreenMarkerChoreographyPlugin
     if app == "service":
-        return HMD3DChoreographyPlugin
+        return registered["HMD 3D Calibration"]  # HMD3DChoreographyPlugin
     if app == "player":
         raise NotImplementedError()
     raise ValueError(f'Unknown app "{app}"')
 
 
 def patch_loaded_plugins_with_choreography_plugin(loaded_plugins, app: str):
-
     default_choreo_class = default_calibration_choreography_plugin(app=app)
     default_choreo_name = default_choreo_class.__name__
 

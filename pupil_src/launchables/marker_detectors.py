@@ -1,19 +1,17 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 from types import SimpleNamespace
 
 
 def circle_detector(ipc_push_url, pair_url, source_path, batch_size=20):
-
     # ipc setup
     import zmq
     import zmq_tools
@@ -34,8 +32,9 @@ def circle_detector(ipc_push_url, pair_url, source_path, batch_size=20):
 
     # imports
     from time import sleep
-    from video_capture import File_Source, EndofVideoError
+
     from circle_detector import CircleTracker
+    from video_capture import EndofVideoError, File_Source
 
     try:
         # TODO: we need fill_gaps=True for correct frame indices to paint the circle

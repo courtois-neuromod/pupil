@@ -1,22 +1,21 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import abc
-import typing
 import multiprocessing as mp
+import typing
 from collections import namedtuple
 
-from tasklib.interface import TaskInterface
-from tasklib.background.shared_memory import SharedMemory
 from tasklib.background.patches import Patch
+from tasklib.background.shared_memory import SharedMemory
+from tasklib.interface import TaskInterface
 
 _TaskYieldSignal = namedtuple("_TaskYieldSignal", "datum")
 _TaskCompletedSignal = namedtuple("_TaskCompletedSignal", "return_value")
@@ -153,6 +152,9 @@ def _generator_wrapper(
     except Exception as e:
         import traceback
 
+        from rich import print
+
+        print(traceback.format_exc())
         pipe_send.send(_TaskExceptionSignal(e, traceback.format_exc()))
     else:
         pipe_send.send(_TaskCompletedSignal(return_value=None))

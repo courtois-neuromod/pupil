@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -13,7 +13,6 @@ import logging
 import tasklib
 from gaze_producer import worker
 from observable import Observable
-
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +41,7 @@ class CalibrationController(Observable):
                 self._calibration_storage.save_to_disk()
                 self.on_calibration_computed(calibration)
 
+        calibration.status = "Recalculating..."
         if len(self._reference_location_storage.items) == 0:
             error_message = f"You first need to detect reference locations before calculating the calibration '{calibration.name}'"
             self._abort_calculation(calibration, error_message)

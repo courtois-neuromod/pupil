@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -12,8 +12,9 @@ import logging
 import platform
 import typing as T
 
-import glfw
 import gl_utils
+import glfw
+
 from .utils import GLFWErrorReporting
 
 GLFWErrorReporting.set_default()
@@ -29,7 +30,6 @@ class WindowPositionManager:
         default_position: T.Tuple[int, int],
         previous_position: T.Optional[T.Tuple[int, int]],
     ) -> T.Tuple[int, int]:
-
         if previous_position is None:
             return default_position
 

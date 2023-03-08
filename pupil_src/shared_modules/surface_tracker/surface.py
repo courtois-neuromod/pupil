@@ -1,23 +1,21 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import abc
 import logging
 import typing
 import uuid
 
 import cv2
-import numpy as np
-
 import methods
+import numpy as np
 from stdlib_utils import is_none, is_not_none
 
 from .surface_marker import Surface_Marker_UID
@@ -45,7 +43,6 @@ class Surface(abc.ABC):
         build_up_status: float = None,
         deprecated_definition: bool = None,
     ):
-
         init_args = [
             real_world_size,
             marker_aggregates_undist,
@@ -459,10 +456,8 @@ class Surface(abc.ABC):
                 self.registered_markers_dist[marker.uid].add_observation(uv_dist)
 
         num_observations = sum(
-            [
-                len(aggregate.observations)
-                for aggregate in self.registered_markers_undist.values()
-            ]
+            len(aggregate.observations)
+            for aggregate in self.registered_markers_undist.values()
         )
         self._avg_obs_per_marker = num_observations / len(
             self.registered_markers_undist
@@ -473,7 +468,6 @@ class Surface(abc.ABC):
             self.prune_markers()
 
     def _bounding_quadrangle(self, vertices):
-
         # According to OpenCV implementation, cv2.convexHull only accepts arrays with
         # 32bit floats (CV_32F) or 32bit signed ints (CV_32S).
         # See: https://github.com/opencv/opencv/blob/3.4/modules/imgproc/src/convhull.cpp#L137
@@ -624,7 +618,7 @@ class Surface(abc.ABC):
         if heatmap_data:
             xvals, yvals = zip(*((x, 1.0 - y) for x, y in heatmap_data))
             hist, *edges = np.histogram2d(
-                yvals, xvals, bins=grid, range=[[0, 1.0], [0, 1.0]], normed=False
+                yvals, xvals, bins=grid, range=[[0, 1.0], [0, 1.0]], density=False
             )
             filter_h = 19 + self._heatmap_blur_factor * 15
             filter_w = filter_h * aspect_ratio

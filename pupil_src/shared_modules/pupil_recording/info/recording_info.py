@@ -1,14 +1,13 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import abc
 import collections
 import json
@@ -18,8 +17,7 @@ import os
 import typing as T
 import uuid
 
-from version_utils import get_version, parse_version, ParsedVersion
-
+from version_utils import ParsedVersion, get_version, parse_version
 
 __all__ = ["RecordingInfo", "RecordingInfoFile", "RecordingInfoInvalidError"]
 
@@ -37,15 +35,12 @@ class RecordingInfoInvalidError(Exception):
         key: str, actual_type, expected_type
     ) -> "RecordingInfoInvalidError":
         return RecordingInfoInvalidError(
-            (
-                f'Value for key "{key}" is of the wrong type "{actual_type}"; '
-                f'expected "{expected_type}"'
-            )
+            f'Value for key "{key}" is of the wrong type "{actual_type}"; '
+            f'expected "{expected_type}"'
         )
 
 
 class RecordingInfo(collections.abc.MutableMapping):
-
     # MutableMapping
 
     def __getitem__(self, key):
@@ -303,7 +298,6 @@ class RecordingInfo(collections.abc.MutableMapping):
     def __matching_public_properties(
         cls, x: "RecordingInfo", y: "RecordingInfo"
     ) -> T.Mapping[str, T.Tuple[_PublicProperty, _PublicProperty]]:
-
         x_properties = x._public_properties
         y_properties = y._public_properties
 
@@ -323,7 +317,6 @@ class RecordingInfo(collections.abc.MutableMapping):
 
 
 class RecordingInfoFile(RecordingInfo):
-
     # Public
 
     file_name = "info.player.json"
@@ -358,7 +351,7 @@ class RecordingInfoFile(RecordingInfo):
         Load the data from the info file in the recording directory.
         :param should_validate: If `True`, validates the loaded data.
         """
-        with open(self.file_path, "r") as file:
+        with open(self.file_path) as file:
             read_dict = self._read_dict_from_file(file=file)
         self.update(read_dict)
         if should_validate:
@@ -378,7 +371,7 @@ class RecordingInfoFile(RecordingInfo):
     @staticmethod
     def detect_recording_info_file_version(rec_dir: str) -> ParsedVersion:
         file_path = RecordingInfoFile._info_file_path(rec_dir=rec_dir)
-        with open(file_path, "r") as file:
+        with open(file_path) as file:
             read_dict = RecordingInfoFile._read_dict_from_file(file=file)
         return parse_version(read_dict["meta_version"])
 
@@ -400,7 +393,7 @@ class RecordingInfoFile(RecordingInfo):
             # min_player_version and try to find a best template.
             try:
                 info_file_path = RecordingInfoFile._info_file_path(rec_dir)
-                with open(info_file_path, "r") as f:
+                with open(info_file_path) as f:
                     info_dict = RecordingInfoFile._read_dict_from_file(f)
                 min_player_version = parse_version(info_dict["min_player_version"])
             except Exception as e:

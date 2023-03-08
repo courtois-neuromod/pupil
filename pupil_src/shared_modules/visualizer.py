@@ -1,27 +1,31 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-import glfw
 import gl_utils
+import glfw
 from gl_utils import GLFWErrorReporting
 
 GLFWErrorReporting.set_default()
 
+import math
+from platform import system
+
+import numpy as np
 from OpenGL.GL import (
     GL_BLEND,
     GL_COLOR_BUFFER_BIT,
-    GL_LINES,
     GL_LINE_LOOP,
     GL_LINE_SMOOTH,
     GL_LINE_SMOOTH_HINT,
     GL_LINE_STRIP,
+    GL_LINES,
     GL_MODELVIEW,
     GL_NICEST,
     GL_ONE_MINUS_SRC_ALPHA,
@@ -51,14 +55,10 @@ from OpenGL.GL import (
     glVertex3f,
     glViewport,
 )
-from platform import system
-
-from pyglui.cygl.utils import RGBA
 from pyglui.cygl import utils as glutils
+from pyglui.cygl.utils import RGBA
 from pyglui.pyfontstash import fontstash as fs
 from pyglui.ui import get_opensans_font_path
-import math
-import numpy as np
 
 # UI Platform tweaks
 if system() == "Linux":
@@ -69,13 +69,12 @@ else:
     window_position_default = (0, 0)
 
 
-class Visualizer(object):
+class Visualizer:
     """docstring for Visualizer
     Visualizer is a base class for all visualizations in new windows
     """
 
     def __init__(self, g_pool, name="Visualizer", run_independently=False):
-
         self.name = name
         self.window_size = (640, 480)
         self.window = None
@@ -106,7 +105,6 @@ class Visualizer(object):
     ############## DRAWING FUNCTIONS ##############################
 
     def draw_frustum(self, width, height, length):
-
         W = width / 2.0
         H = height / 2.0
         Z = length
@@ -158,7 +156,6 @@ class Visualizer(object):
         contours=45,
         color=RGBA(0.2, 0.5, 0.5, 0.5),
     ):
-
         glPushMatrix()
         glTranslatef(sphere_position[0], sphere_position[1], sphere_position[2])
         glScale(sphere_radius, sphere_radius, sphere_radius)

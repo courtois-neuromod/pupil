@@ -1,14 +1,13 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import collections
 import random
 
@@ -16,10 +15,10 @@ import player_methods as pm
 from head_pose_tracker import storage
 from head_pose_tracker.function import (
     BundleAdjustment,
-    pick_key_markers,
     get_initial_guess,
+    pick_key_markers,
+    utils,
 )
-from head_pose_tracker.function import utils
 
 IntrinsicsTuple = collections.namedtuple(
     "IntrinsicsTuple", ["camera_matrix", "dist_coefs"]

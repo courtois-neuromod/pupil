@@ -1,24 +1,19 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import logging
 import traceback
 import typing as T
 
 import numpy as np
-import OpenGL.GL as gl
 import scipy.spatial
-from pyglui import ui
-from pyglui.cygl.utils import RGBA, draw_points_norm, draw_polyline_norm
-
 from calibration_choreography import (
     ChoreographyAction,
     ChoreographyMode,
@@ -201,6 +196,8 @@ class Accuracy_Visualizer(Plugin):
         self._outlier_threshold = outlier_threshold  # in degrees
 
     def init_ui(self):
+        from pyglui import ui
+
         self.add_menu()
         self.menu.label = "Accuracy Visualizer"
 
@@ -586,6 +583,9 @@ class Accuracy_Visualizer(Plugin):
         )
 
     def gl_display(self):
+        import OpenGL.GL as gl
+        from pyglui.cygl.utils import RGBA, draw_points_norm, draw_polyline_norm
+
         if self.vis_mapping_error and self.error_lines is not None:
             draw_polyline_norm(
                 self.error_lines, color=RGBA(1.0, 0.5, 0.0, 0.5), line_type=gl.GL_LINES

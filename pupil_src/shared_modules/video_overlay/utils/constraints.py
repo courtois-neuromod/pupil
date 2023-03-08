@@ -1,14 +1,13 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import abc
 
 INF = float("inf")
@@ -77,4 +76,4 @@ class ConstraintedPosition:
         self.y = ConstraintedValue(y)
 
     def __str__(self):
-        return "(x={}, y={})".format(self.x.value, self.y.value)
+        return f"(x={self.x.value}, y={self.y.value})"

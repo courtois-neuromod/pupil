@@ -1,14 +1,13 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import logging
 import re
 import shutil
@@ -138,7 +137,6 @@ def _pi_path_core_path_pairs(recording: PupilRecording):
 
 
 def _rewrite_timestamps(recording: PupilRecording):
-
     # Use start time from info file (instead of recording.meta_info.start_time_synced_ns)
     # to have a more precise value and avoid having a negative first timestamp when rewriting
     info_json = utils.read_pupil_invisible_info_file(recording.rec_dir)
@@ -165,7 +163,7 @@ def _convert_gaze(recording: PupilRecording):
         "confidence": None,
     }
     with fm.PLData_Writer(recording.rec_dir, "gaze") as writer:
-        for ((x, y), ts, conf) in pi_gaze_items(root_dir=recording.rec_dir):
+        for (x, y), ts, conf in pi_gaze_items(root_dir=recording.rec_dir):
             template_datum["timestamp"] = ts
             template_datum["norm_pos"] = m.normalize(
                 (x, y), size=(width, height), flip_y=True
@@ -208,8 +206,9 @@ class BrokenFirstFrameRecordingIssue:
                 temp_v_path = Path(temp_dir) / v_path.name
 
                 # Save video, dropping first frame, to temp file
-                in_container = av.open(str(v_path))
-                out_container = av.open(str(temp_v_path), "w")
+                video_format = v_path.suffix[1:]
+                in_container = av.open(str(v_path), format=video_format)
+                out_container = av.open(str(temp_v_path), "w", format=video_format)
 
                 # input -> output stream mapping
                 stream_mapping = {
@@ -253,40 +252,45 @@ class BrokenFirstFrameRecordingIssue:
         # this is a symptom of Pupil Invisible recording with broken first frame.
         # If the first timestamp is greater, remove it from the timestamps and overwrite the file.
         for v_path, ts_path in cls._pi_world_video_and_raw_time_paths(recording):
-
-            in_container = av.open(str(v_path))
-            packets = in_container.demux(video=0)
-
-            # Try to demux the first frame.
-            # This is expected to raise an error.
-            # If no error is raised, ignore this video.
             try:
-                _ = next(packets).decode()
+                with av.open(str(v_path), format=v_path.suffix[1:]) as in_container:
+                    packets = in_container.demux(video=0)
+
+                    # Try to demux the first frame.
+                    # This is expected to raise an error.
+                    # If no error is raised, ignore this video.
+                    try:
+                        _ = next(packets).decode()
+                    except av.AVError:
+                        pass  # Expected
+                    except StopIteration:
+                        continue  # Not expected
+                    else:
+                        continue  # Not expected
+
+                    # Try to demux the second frame.
+                    # This is not expected to raise an error.
+                    # If an error is raised, ignore this video.
+                    try:
+                        _ = next(packets).decode()
+                    except av.AVError:
+                        continue  # Not expected
+                    except StopIteration:
+                        continue  # Not expected
+                    else:
+                        pass  # Expected
+
+                    # Check there are 2 or more raw timestamps.
+                    raw_time = cls._pi_raw_time_load(ts_path)
+                    if len(raw_time) < 2:
+                        continue
+
+                    yield v_path, ts_path
             except av.AVError:
-                pass  # Expected
-            except StopIteration:
-                continue  # Not expected
-            else:
-                continue  # Not expected
-
-            # Try to demux the second frame.
-            # This is not expected to raise an error.
-            # If an error is raised, ignore this video.
-            try:
-                _ = next(packets).decode()
-            except av.AVError:
-                continue  # Not expected
-            except StopIteration:
-                continue  # Not expected
-            else:
-                pass  # Expected
-
-            # Check there are 2 or more raw timestamps.
-            raw_time = cls._pi_raw_time_load(ts_path)
-            if len(raw_time) < 2:
-                continue
-
-            yield v_path, ts_path
+                logger.exception(
+                    f"Encountered an issue while reading {v_path}. "
+                    "Skipping file. Transformed recording might be incomplete."
+                )
 
     @classmethod
     def _pi_world_video_and_raw_time_paths(cls, recording: PupilRecording):

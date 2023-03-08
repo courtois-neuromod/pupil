@@ -1,7 +1,7 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
@@ -24,7 +24,7 @@ from .utilities import (
 
 class BasicEye(PosedObject):
     def __init__(self):
-        super(BasicEye, self).__init__(pose=np.eye(4), extrinsics=None, children=())
+        super().__init__(pose=np.eye(4), extrinsics=None, children=())
 
         self._gaze_vector = PosedObject()
         self.eyeball_center = [0.0, 0.0, 0.0]
@@ -59,7 +59,7 @@ class BasicEye(PosedObject):
         return (self._gaze_vector.pose @ self.pose)[:3, 2]
 
     def __str__(self):
-        return "\n".join("{}:{}".format(k, v) for k, v in self.__dict__.items())
+        return "\n".join(f"{k}:{v}" for k, v in self.__dict__.items())
 
 
 class LeGrandEye(BasicEye):
@@ -71,8 +71,7 @@ class LeGrandEye(BasicEye):
         n_refraction=1.3375,
         camera=None,
     ):
-
-        super(LeGrandEye, self).__init__()
+        super().__init__()
 
         self.model_type = "LeGrand"
 
@@ -133,7 +132,6 @@ class LeGrandEye(BasicEye):
         return pupil_center
 
     def set_up_gl_vertices(self):
-
         # EYEBALL
         self.central_ring_eyeball = [
             [self.eyeball_radius * np.sin(phi), 0, self.eyeball_radius * np.cos(phi)]
@@ -187,7 +185,6 @@ class LeGrandEye(BasicEye):
         color_eyeball=(0.6, 0.6, 1.0),
         color_cornea=(1.0, 1.0, 1.0),
     ):
-
         glPushMatrix()
 
         glLoadIdentity()
@@ -210,7 +207,6 @@ class LeGrandEye(BasicEye):
 
         # DRAW EYEBALL
         if draw_eyeball:
-
             # glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
             glColor4f(*color_eyeball, 1.0 * alpha)
             glLineWidth(1.0)
@@ -244,7 +240,6 @@ class LeGrandEye(BasicEye):
 
         # DRAW IRIS
         if draw_iris:
-
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
             glColor4f(
                 self.iris_color[0], self.iris_color[1], self.iris_color[2], 0.4 * alpha
@@ -263,7 +258,6 @@ class LeGrandEye(BasicEye):
 
         # DRAW CORNEA
         if draw_cornea:
-
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
             glColor4f(*color_cornea, 0.3 * alpha)
             glLineWidth(1.0)

@@ -1,14 +1,13 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import logging
 import multiprocessing
 import platform
@@ -49,6 +48,7 @@ class Surface_Offline(Surface):
         state = self.__dict__.copy()
         # Remove the unpicklable entries.
         del state["on_surface_change"]
+        del state["location_cache_filler"]
         return state
 
     def __setstate__(self, state):

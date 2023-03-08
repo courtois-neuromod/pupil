@@ -1,14 +1,13 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import csv
 import datetime
 import logging
@@ -64,7 +63,6 @@ class iMotions_Exporter(IsolatedFrameExporter):
         super().customize_menu()
 
     def export_data(self, export_range, export_dir):
-
         pupil_recording = PupilRecording(rec_dir=self.g_pool.rec_dir)
         meta = pupil_recording.meta_info
 
@@ -75,7 +73,7 @@ class iMotions_Exporter(IsolatedFrameExporter):
             return
 
         rec_start = _get_recording_start_date(self.g_pool.rec_dir)
-        im_dir = os.path.join(export_dir, "iMotions_{}".format(rec_start))
+        im_dir = os.path.join(export_dir, f"iMotions_{rec_start}")
 
         try:
             csv_header, csv_rows = _csv_exported_gaze_data(
@@ -184,7 +182,6 @@ class _iMotionsExporterNo3DGazeDataError(Exception):
 def _csv_exported_gaze_data(
     gaze_positions, destination_folder, export_range, timestamps, capture
 ):
-
     export_start, export_stop = export_range  # export_stop is exclusive
     export_window = pm.exact_window(timestamps, (export_start, export_stop - 1))
     gaze_section = gaze_positions.init_dict_for_window(export_window)

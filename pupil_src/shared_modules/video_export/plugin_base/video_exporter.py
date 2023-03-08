@@ -1,20 +1,18 @@
 """
 (*)~---------------------------------------------------------------------------
 Pupil - eye tracking platform
-Copyright (C) 2012-2022 Pupil Labs
+Copyright (C) Pupil Labs
 
 Distributed under the terms of the GNU
 Lesser General Public License (LGPL v3.0).
 See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 """
-
 import abc
 
-from pyglui import ui
-
-from task_manager import TaskManager
 from plugin import Plugin
+from pyglui import ui
+from task_manager import TaskManager
 
 
 class VideoExporter(TaskManager, Plugin, abc.ABC):
