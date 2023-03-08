@@ -31,3 +31,6 @@ pupil-detectors>=2.0.2rc2
 pupil-labs-uvc
 pye3d>=0.3.2
 pyglui>=1.31.1b1
+
+# aravis deps
+pygobject
