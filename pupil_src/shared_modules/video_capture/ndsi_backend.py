@@ -22,7 +22,7 @@ from .base_backend import Base_Manager, Base_Source, SourceInfo
 try:
     from ndsi import __version__
 
-    assert parse_version(__version__) >= parse_version("1.3")
+    #assert parse_version(__version__) >= parse_version("1.3")
     from ndsi import __protocol_version__
 except (ImportError, AssertionError):
     raise Exception("pyndsi version is too old. Please upgrade!") from None

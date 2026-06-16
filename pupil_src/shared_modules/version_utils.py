@@ -35,7 +35,7 @@ def get_tag_commit() -> T.Optional[str]:
         return None
 
 
-ParsedVersion = T.Union[packaging.version.LegacyVersion, packaging.version.Version]
+ParsedVersion = packaging.version.Version
 
 
 def parse_version(vstring: str) -> ParsedVersion:

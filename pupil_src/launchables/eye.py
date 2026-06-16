@@ -674,7 +674,7 @@ def eye(
                         }
                     )
                 elif subject.startswith("frame_publishing.started"):
-                    should_publish_frames = True
+                    should_publish_frames = False
                     frame_publish_format = notification.get("format", "jpeg")
                 elif subject.startswith("frame_publishing.stopped"):
                     should_publish_frames = False
