@@ -25,7 +25,7 @@ cysignals ; platform_system != "Windows"
 win_inet_pton ; platform_system == "Windows"
 
 # Pupil-Labs
-#ndsi@git+https://github.com/berndie/pyndsi.git@ffmpeg-6
+#ndsi@git+https://github.com/courtois-neuromod/pyndsi.git@ffmpeg_8
 pupil-apriltags==1.0.*
 pupil-detectors>=2.0.2rc2
 pupil-labs-uvc
